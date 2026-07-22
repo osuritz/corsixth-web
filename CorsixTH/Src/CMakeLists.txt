@@ -16,7 +16,7 @@ if (EMSCRIPTEN)
     )
     FetchContent_Declare(lfs
             GIT_REPOSITORY "https://github.com/lunarmodules/luafilesystem.git"
-            GIT_TAG 09511782201302ade916d4b250d01a6c61b56844
+            GIT_TAG a186cca5833691e830ed255e38ace8ff6b870dbf
             SOURCE_DIR "${CMAKE_BINARY_DIR}/ep_lfs"
             DOWNLOAD_EXTRACT_TIMESTAMP false
     )

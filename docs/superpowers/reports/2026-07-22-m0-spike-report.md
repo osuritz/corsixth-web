@@ -26,6 +26,47 @@
 - `emscripten/emsdk:3.1.64` is an `linux/amd64` image; on this Apple Silicon (arm64) host, Docker printed: `WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8) and no specific platform was requested`. It ran under emulation (not native arm64) rather than failing, but this is worth noting as a possible source of slowness for any future attempts with this image.
 - `.gitignore` line 33 (`/build*/`) matches both `/build/` and `/build-wasm/`, so `build/build.sh` is ignored by default. `git add -f` was required to track it (see Files changed). This is a pre-existing repo condition, not something introduced by this task.
 
+## Extended triage (Task 1.5)
+
+Goal: find a working `emsdk` + CMake + engine-pin combo between Task 1's two mutually-exclusive failures, with minimal, bounded probes (max 4 rounds, STOP at first success).
+
+### Rounds table
+
+| Round | Combo | Result | Error (verbatim) / Notes |
+|---|---|---|---|
+| A | `emsdk:3.1.64` + CMake upgraded in-container via `pip3 install "cmake>=3.24,<4"` (installed 3.31.10) | Configure PASSED; compile FAILED — **new** error, not Task 1's Lua-version `#error` | `em++: error: error with `--use-port=contrib.lua` \| invalid port name: `contrib.lua`` (repeated per translation unit); `gmake: *** [Makefile:136: all] Error 2` |
+| B (triage of A's new error) | — | Root cause identified; no build-tooling one-liner fix possible → recorded, moved to C | Confirmed via `docker run --rm emscripten/emsdk:3.1.64 bash -c "ls .../tools/ports/ ...; ls .../tools/ports/contrib"`: emcc 3.1.64's ports tree has no `lua.py` anywhere (main ports list or `contrib/`) — the `contrib.lua` port itself was added to Emscripten at some version after 3.1.64. This is a harder version-skew than Round C's stated trigger ("resolves to Lua >5.4") — 3.1.64 doesn't resolve the port to *any* Lua version, it doesn't recognize the port name at all. Judged to be the same failure family (contrib.lua/toolchain-vintage mismatch) and not fixable via a build-tooling one-liner (the port is compiled into `emcc` itself), so per Round B's "otherwise record and move to C" this was treated as satisfying the move to Round C. Flagging this divergence from the literal trigger text explicitly rather than silently reinterpreting it. |
+| C | `emsdk:latest` (emcc 6.0.3, bundled CMake 3.28.3 — no shim needed) + bumped `luafilesystem` `GIT_TAG` in `CorsixTH/Src/CMakeLists.txt` (line with the `lfs` `FetchContent_Declare`) from `0951178...` to upstream master HEAD `a186cca5833691e830ed255e38ace8ff6b870dbf` (= tag `v1_9_0`) | **SUCCESS** — configure passed, compile passed, link passed, exit 0, 3 artifacts produced | See "Winning combo" below |
+| D | Not needed (stopped at first success per instructions) | — | — |
+
+### Evidence gate for Round C (upstream luafilesystem Lua 5.5 support)
+
+- Checked via `WebFetch` of `github.com/lunarmodules/luafilesystem` (`blob/master/src/lfs.c` and `commits/master`) before touching engine source, per the brief's evidence requirement.
+- Current pinned commit `0951178...` (full: `09511782201302ade916d4b250d01a6c61b56844`) is the commit *immediately before* `31dcb88 "Support Lua 5.5 (#180)"` (merged, per GitHub, as part of "Release 1.9.0", Dec 28 2025).
+- `git ls-remote https://github.com/lunarmodules/luafilesystem.git HEAD refs/heads/master 'refs/tags/*'` confirmed: `master` HEAD == `a186cca5833691e830ed255e38ace8ff6b870dbf` == tag `v1_9_0`.
+- WebFetch of `lfs.c` on master confirmed the version-guard block now spans `LUA_VERSION_NUM` 501 and 502–505 (was 501 and 502–504 at the old pin), with the `#error unsupported Lua version` only tripping outside that range — i.e. 505 (Lua 5.5, what `contrib.lua` resolves to on `emsdk:latest`) is now accepted.
+- Conclusion: evidence supported the bump; applied it (the single authorized engine-tree line).
+
+### Winning combo
+
+- Image: `emscripten/emsdk:latest` → `emcc ... 6.0.3 (283e2d130132859fde6a4e4c87fd254b38127651)`
+- CMake: bundled `3.28.3` (already ≥ 3.24 — no pip shim needed; the Round-A shim was written, proven to work on `3.1.64`, then **removed** from the final `build/build.sh` per the brief's "keep the shim only if the winning image needs it")
+- Engine-tree change: `CorsixTH/Src/CMakeLists.txt` — `lfs` `FetchContent_Declare`'s `GIT_TAG` bumped `09511782201302ade916d4b250d01a6c61b56844` → `a186cca5833691e830ed255e38ace8ff6b870dbf`
+- Command: `build/build.sh clean` (no `EMSDK_IMAGE` override needed — `latest` is already the script default) → **exit 0**
+- Artifacts (`build-wasm/CorsixTH/`):
+  - `corsix-th.js` — 268,908 bytes
+  - `corsix-th.wasm` — 3,462,912 bytes
+  - `corsix-th.data` — 15,484,956 bytes
+
+  Note: actual output basename is `corsix-th` (lowercase-hyphenated), not `CorsixTH` — set explicitly at `CorsixTH/CMakeLists.txt:91` (`set_target_properties(CorsixTH PROPERTIES OUTPUT_NAME corsix-th)`), a pre-existing engine-source line not touched by this task. The brief's success criterion and `build/build.sh`'s original `find` both assumed `CorsixTH.js/.wasm/.data`; this was a naming assumption that didn't hold. `build/build.sh`'s `find` pattern was corrected (build-tooling change, within authorization) to match the real names; the CMake `OUTPUT_NAME` itself was left untouched.
+
+### build/build.sh final state
+
+- `EMSDK_IMAGE` override pattern preserved (`IMAGE="${EMSDK_IMAGE:-emscripten/emsdk:latest}"`), now pointing at the winning combo by default.
+- CMake-upgrade shim from Round A removed (not needed for the winning image); a harmless `--- cmake: ...` version-echo line was kept for diagnostics.
+- `find` pattern fixed to the real artifact basename (`corsix-th.*`, case-insensitive).
+- Re-ran the finalized script once more end-to-end (`build/build.sh clean`, no image override) to confirm the *committed* script version reproduces the exit-0 result — confirmed.
+
 ## Boot attempt
 (Task 2 fills this in.)
 
