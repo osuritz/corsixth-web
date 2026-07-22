@@ -1,0 +1,11 @@
+html, body { margin: 0; height: 100%; background: #101418; color: #e8e4d8; font-family: system-ui, sans-serif; }
+#canvas { display: block; margin: 0 auto; height: 100%; }
+#overlay { position: fixed; inset: 0; background: #101418; display: flex; align-items: center; justify-content: center; text-align: center; }
+#overlay.hidden, .hidden { display: none !important; }
+#overlay-content { max-width: 34rem; padding: 1.5rem; }
+#save-banner { position: fixed; top: 0; left: 0; right: 0; background: #7a1f1f; color: #fff; padding: .5rem 1rem; text-align: center; z-index: 10; }
+button, .button { background: #2f6f4f; color: #fff; border: 0; border-radius: .4rem; padding: .7rem 1.2rem; font-size: 1rem; cursor: pointer; text-decoration: none; display: inline-block; margin: .4rem; }
+#drop-zone { border: 2px dashed #4a5568; border-radius: .6rem; padding: 2rem; margin-top: 1rem; }
+#drop-zone.drag { border-color: #2f6f4f; background: #16202a; }
+progress { width: 100%; }
+.error { color: #ff8080; }
