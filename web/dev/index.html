@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>corsixth-web dev harness</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; }
+    canvas { display: block; margin: 0 auto; height: 100%; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+  <script src="corsix-th.js"></script>
+  <script>
+    Module({
+      canvas: document.getElementById('canvas'),
+      print: (t) => console.log('[stdout]', t),
+      printErr: (t) => console.warn('[stderr]', t),
+    })
+      .then(() => console.log('[harness] module instantiated'))
+      .catch((e) => console.error('[harness] instantiation failed', e));
+  </script>
+</body>
+</html>

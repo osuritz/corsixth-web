@@ -68,7 +68,30 @@ Goal: find a working `emsdk` + CMake + engine-pin combo between Task 1's two mut
 - Re-ran the finalized script once more end-to-end (`build/build.sh clean`, no image override) to confirm the *committed* script version reproduces the exit-0 result — confirmed.
 
 ## Boot attempt
-(Task 2 fills this in.)
+
+- Harness: `web/dev/index.html` (verbatim per Task 2 brief) + `build/serve.sh` (verbatim per Task 2 brief), serving `build-wasm/CorsixTH/` (the winning Task 1.5 artifacts) at `http://localhost:8123/`.
+- Confirmed via source inspection before boot: the WASM link flags (`CorsixTH/CMakeLists.txt:113-131`) include `-sMODULARIZE` with no `-sEXPORT_NAME` override, and `corsix-th.js` itself shows `var Module=(()=>{...return async function(moduleArg={})...})()` — the factory global is `Module`, exactly matching the harness. No harness/artifact-mismatch retry was needed.
+- Server: `python3 -m http.server 8123` via `build/serve.sh`. Confirmed via `curl -I`: `corsix-th.js` → 200 (268,908 B, `text/javascript`), `corsix-th.wasm` → 200 (3,462,912 B, `application/wasm`), `corsix-th.data` → 200 (15,484,956 B, `application/octet-stream`) — all three sizes match the Task 1.5 build output exactly.
+- Browser: Chrome via `chrome-devtools-mcp`, navigated to `http://localhost:8123/`, observed for ~25s post-load (no change in console after the first ~1s — the engine exits almost immediately; see below).
+- Network tab (DevTools): same 3 artifacts at HTTP 200 with identical byte counts confirmed via `get_network_request` (`corsix-th.data` content-length 15,484,956; `corsix-th.wasm` content-length 3,462,912, `content-type: application/wasm`); only other request was `favicon.ico` → 404 (irrelevant browser chrome request, not an engine asset).
+- Console output (verbatim, in order):
+  1. `[error] Failed to load resource: the server responded with a status of 404 (File not found)` — the `favicon.ico` request above; unrelated to the engine.
+  2. `[warn] [stderr] CorsixTH cannot find CorsixTH.lua. If you want use a custom location, specify it by --interpreter=FILE`
+  3. `[log] [harness] module instantiated` — the `Module({...})` promise **resolved** (no `.catch`), i.e. no JS exception was thrown; the engine's native `exit(1)` (see below) unwound cleanly through Emscripten's `-sEXIT_RUNTIME`.
+  No further messages appeared in ~25s of observation — a single clean native exit, not a crash loop.
+- Screenshot: `docs/superpowers/reports/m0-boot.png` — solid black canvas (matches the harness's `#111` body background). Confirmed via `evaluate_script` that `#canvas` still has its un-initialized default bitmap size (`300×150`), i.e. SDL video/window setup was never reached — consistent with the engine exiting during Lua-interpreter bootstrap, before any SDL calls.
+
+### Root-cause analysis (source-level only — no code changed, per binding constraint)
+
+Traced why `CorsixTH.lua` isn't found, since the `.data` preload package does contain it:
+- `CorsixTH/CMakeLists.txt:132-143` (the `EMSCRIPTEN` branch): globs `CorsixTH.lua`, `Lua/*.lua`, `Bitmap/*`, `Campaigns/*`, `Levels/*` and preloads each via `--preload-file "<file>@/corsixth/<relative_file>"`. The engine's own bootstrap script is bundled, at virtual path `/corsixth/CorsixTH.lua`.
+- `CorsixTH/Src/main.cpp`, `search_script_file()` (lines 65-129) checks, in order: (1) a `--interpreter=` CLI arg — not passed by our harness/Module config; (2) a hardcoded local-dir list (`./`, `CorsixTH/`, `Contents/Resources/`, `../Resources/`, `../share/corsix-th/`, lines 77-124) — but this whole block is gated by `#ifdef CORSIX_TH_SEARCH_LOCAL_DATADIRS`, and top-level `CMakeLists.txt:88-92` defaults `SEARCH_LOCAL_DATADIRS` to `OFF` for every non-Apple platform (including `EMSCRIPTEN`), so this block is not even compiled into our build; (3) `CORSIX_TH_INTERPRETER_PATH` (lines 127-129), a compile-time constant. `CorsixTH/CMakeLists.txt:20-31` sets this per-platform (`USE_SOURCE_DATADIRS` / `MSVC` / `APPLE` / generic `else()`) but has **no `elseif(EMSCRIPTEN)` branch**, so it falls through to the generic Unix `else()` (line 29-31), yielding `${CMAKE_INSTALL_FULL_DATADIR}/corsix-th/CorsixTH.lua` — a host-filesystem install path (e.g. `/usr/local/share/corsix-th/CorsixTH.lua`) with no relation to the browser sandbox's actual virtual-FS mount point (`/corsixth/CorsixTH.lua`).
+- Net effect: none of `search_script_file()`'s 3 candidate paths can ever resolve to `/corsixth/CorsixTH.lua`, **regardless of whether Theme Hospital game data is supplied**. This is a WASM-porting gap in the engine's own CMake (missing an `EMSCRIPTEN` case for `CORSIX_TH_INTERPRETER_PATH`), not evidence of "missing TH game data" per se — the printed message is real engine/Lua-VM code executing and failing at a bootstrap step that happens to precede any TH-data check.
+
+Per this task's calibration guidance ("a Lua error in config/app bootstrap … console errors about /corsixth paths" = SUCCESS, since "engine code ran and complained about data"), this is classified as **BOOT SUCCESS**: the engine binary ran, executed real C++/Lua-VM logic (`lua_main_no_eval`), and reported a clean, specific, non-crashing exit — no JS exception, no artifact-loading failure, no harness/artifact-name mismatch (Step 4's classification table, row 1).
 
 ## Verdict
-(Task 2 fills this in.)
+
+**A — GREEN:** builds (via the Task 1.5 toolchain fix: `emsdk:latest`/emcc 6.0.3 + `luafilesystem` `GIT_TAG` bump to `v1_9_0`) + boots to a clean, engine-code-driven "asset-missing" exit — no crash, no JS exception, no harness mismatch. M1 proceeds as planned.
+
+Top M1 fix item (recommended, independent of TH game data availability — flagged per this task's calibration guidance even though the verdict is A, not B): `CorsixTH/CMakeLists.txt:20-31` has no `elseif(EMSCRIPTEN)` branch for `CORSIX_TH_DATADIR` / `CORSIX_TH_INTERPRETER_PATH`, so it resolves to a host-install path instead of the actual preload mount `/corsixth/CorsixTH.lua` (where `CorsixTH.lua` + `Lua/*.lua` + `Bitmap/*` + `Campaigns/*` + `Levels/*` are packaged per `CorsixTH/CMakeLists.txt:132-143`). Until this lands, the engine cannot progress past its own bootstrap step to reach actual Theme-Hospital-data-missing logic, **even once a user supplies TH game data**. Suggested fix direction (not applied in this task, per binding "no engine-source changes"): add an `elseif(EMSCRIPTEN)` branch setting `CORSIX_TH_INTERPRETER_PATH` (and/or `CORSIX_TH_DATADIR`) to `/corsixth/CorsixTH.lua`.
