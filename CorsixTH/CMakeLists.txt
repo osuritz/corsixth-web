@@ -116,7 +116,6 @@ if (EMSCRIPTEN)
   --use-port=sdl2_image:formats=png,jpg --use-port=libpng --use-port=libjpeg \
   --use-port=sdl2_mixer -sSDL2_MIXER_FORMATS=ogg \
   --use-port=sdl2_ttf \
-  --use-port=contrib.lua \
   --use-port=zlib \
   -sNO_DISABLE_EXCEPTION_CATCHING -Os")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${USE_FLAGS}")

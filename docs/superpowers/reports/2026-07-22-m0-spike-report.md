@@ -159,3 +159,49 @@ Screenshot: `docs/superpowers/reports/m0-boot-fixed.png` — no longer a solid b
 
 1. `CorsixTH/CorsixTH.lua:79` Lua-version allowlist (5.1-5.4) vs. the Lua 5.5 pulled by the `contrib.lua` Emscripten port on `emsdk:latest` — needs a source-level decision (widen the engine's allowlist vs. pin the Emscripten Lua port to an older release) outside this task's authorization.
 2. `Aborted(TypeError: _asyncify_start_unwind is not a function)` surfacing from `l_mainloop`'s (`CorsixTH/Src/sdl_core.cpp:134`) blocking `SDL_WaitEvent` loop under Emscripten/Asyncify — needs investigation into the Asyncify build configuration; likely blocks any interactive frame loop, not only the bootstrap error screen.
+
+## Post-M0 addendum 2: Lua 5.4 alignment (Task 2.6)
+
+**Authorized by:** controller (EP), plan amendment. New blocker 1 above (`CorsixTH.lua:79` rejects Lua 5.5) is resolved by pinning the *build* to Lua 5.4 — upstream's own supported matrix — rather than widening the engine's version guard to accept 5.5, an interpreter upstream never tested. Engine-tree changes confined to the two CMake files' `EMSCRIPTEN` blocks; no engine C++/Lua source edits.
+
+### Round taken
+
+**Round A (probed, no option found):** `docker run --rm emscripten/emsdk:latest bash -c "emcc --use-port=contrib.lua:help /dev/null 2>&1"` → `No options.`. Read the port source directly (`/emsdk/upstream/emscripten/tools/ports/contrib/lua.py` inside the image): `TAG = '5.5.0'` is hardcoded with no version parameter exposed to `get()`/`create()`. Confirms the port cannot be pinned via a flag — moved to Round B.
+
+**Round B (applied):** Replaced the port with `FetchContent`-built Lua 5.4.8, mirroring the existing lpeg/lfs pattern in `CorsixTH/Src/CMakeLists.txt` exactly. Verified `v5.4.8` is a real upstream tag (`github.com/lua/lua/tags`, released 2025-05-21; newest v5.4.x) before using it.
+
+### Exact change
+
+- `CorsixTH/CMakeLists.txt` (EMSCRIPTEN `USE_FLAGS` block, ~line 119): removed the `--use-port=contrib.lua \` line. No other USE_FLAGS line touched.
+- `CorsixTH/Src/CMakeLists.txt` (EMSCRIPTEN block, top of file): added `FetchContent_Declare(lua54 GIT_REPOSITORY https://github.com/lua/lua.git GIT_TAG v5.4.8 SOURCE_DIR ${CMAKE_BINARY_DIR}/ep_lua54 DOWNLOAD_EXTRACT_TIMESTAMP false)` + `FetchContent_MakeAvailable(lua54)`, then `file(GLOB LUA54_SRC_FILES ${lua54_SOURCE_DIR}/*.c)` filtered with `list(FILTER LUA54_SRC_FILES EXCLUDE REGEX "(lua|luac|onelua)\\.c$")` (drops the three files with a `main()`/standalone entrypoint, matching how the upstream port's own `srcs` list omits them) and `file(GLOB LUA54_HRC_FILES ${lua54_SOURCE_DIR}/*.h)`. Added `target_include_directories(CorsixTH_lib PUBLIC ${lua54_SOURCE_DIR})` so `th_lua.cpp` and friends (outside the FetchContent tree, unlike lpeg/lfs's own sources) can find `lua.h`/`lauxlib.h`/`lualib.h` — previously supplied automatically by the port's system-include injection. `${LUA54_SRC_FILES}`/`${LUA54_HRC_FILES}` appended to the same `target_sources(CorsixTH_lib ...)` lists lpeg/lfs already land in.
+
+### Build result
+
+`build/build.sh clean` (required — toolchain-level change): **exit 0**, first attempt, no iteration needed. Toolchain unchanged (`emcc` 6.0.3, `cmake` 3.28.3 — same as prior tasks). Build log shows `ep_lua54/*.c` objects compiling (`lapi.c` … `lzio.c`, `ltests.c` included per the brief's exact exclude-regex — its content is inert without the debug macros that would activate it, and the link succeeded with no duplicate-symbol errors), immediately after the `ep_lpeg`/`ep_lfs` objects — confirming lpeg/lfs compiled against the same FetchContent'd Lua 5.4 headers. No `--use-port=contrib.lua` occurrence remained in the CMake-emitted compiler/linker command lines. Artifacts refreshed at `build-wasm/CorsixTH/`: `corsix-th.js`, `corsix-th.wasm`, `corsix-th.data` (all present, `find` in `build.sh`'s own artifact check confirmed all three).
+
+### Lua version confirmation
+
+No live `_VERSION` console print was available (the runtime aborts — see below — before any point that would print it, and adding one would be an unauthorized engine-source edit). Instead confirmed via the compiled binary: `strings build-wasm/CorsixTH/corsix-th.wasm | grep -E "^Lua 5\.[0-9]"` → **`Lua 5.4`** only (no `5.5` string present). This is Lua's own `LUA_VERSION`/`_VERSION` literal, embedded verbatim in `lstate.c`/`lauxlib.c`, baked into the binary at compile time from the FetchContent'd v5.4.8 sources.
+
+### Boot re-test
+
+Same flow as Task 2.5: `build/build.sh clean` → `build/serve.sh` (port 8123) → Chrome DevTools MCP `new_page` on `http://localhost:8123/index.html`, waited ~30s, reloaded (`ignoreCache`), waited another ~30s, then read console.
+
+Network requests (all HTTP 200 except a harmless browser-initiated `favicon.ico` 404): `index.html`, `corsix-th.js`, `corsix-th.data`, `corsix-th.wasm`.
+
+Console output (verbatim, all 3 messages, in order):
+1. `[error] Failed to load resource: the server responded with a status of 404 (File not found)` — `favicon.ico`, unrelated to the boot path.
+2. `[warn] [stderr] Aborted(TypeError: _asyncify_start_unwind is not a function)`
+3. `[error] [harness] instantiation failed RuntimeError: Aborted(TypeError: _asyncify_start_unwind is not a function). Build with -sASSERTIONS for more info.`
+
+Critically: **the `CorsixTH.lua:79` Lua-version guard message is gone.** No `An error has occurred in CorsixTH:` bootstrap error-report text, no stack traceback, no "Please recompile ... link against Lua version 5.1, 5.2, 5.3 or 5.4" — all present verbatim in Task 2.5's addendum, all absent here. The guard passed cleanly under Lua 5.4.8; the engine's own bootstrap Lua script executed and got further before hitting a different wall.
+
+Screenshot: `docs/superpowers/reports/m0-boot-lua54.png` — a solid black canvas (viewport). This matches Task 2.5's *pre-fix* `m0-boot.png` state (before the bootstrap error-report UI had a chance to render), not the *post-fix* `m0-boot-fixed.png` state (which showed the rendered error screen) — consistent with the abort happening earlier this time, before the bootstrap error-report's own render/mainloop cycle got a frame on-canvas.
+
+### Classification
+
+**Not BOOT SUCCESS.** No TH-data-related behavior was reached (no missing-data message, config creation, or directory-browser UI). The Lua-version guard genuinely passed — a real, verified fix — but the very next thing the normal boot path hits is Blocker #2 from Task 2.5 (`Aborted(TypeError: _asyncify_start_unwind is not a function)`), now confirmed (per that task's note that this determination was mine to make) to also afflict the **normal boot path**, not only the bootstrap error-screen path. This is the same Asyncify runtime issue already flagged as Task 2.5's "next blocker 2" — it was already going to need its own fix regardless of the Lua-version outcome, and this task's re-test confirms it sits immediately behind the now-cleared Lua guard.
+
+### Next blocker for follow-up (not fixed in this task)
+
+`Aborted(TypeError: _asyncify_start_unwind is not a function)` — the sole remaining item between current state and further boot progress. Per Task 2.5's trace, this originates in `SDL.mainloop`/`l_mainloop` (`CorsixTH/Src/sdl_core.cpp:134`)'s blocking `SDL_WaitEvent` loop needing Asyncify to yield to the browser event loop; `-sASYNCIFY` is linked (`CorsixTH/CMakeLists.txt`) but the expected `_asyncify_start_unwind` export/import appears missing or misconfigured. Needs Asyncify build-configuration investigation (e.g. `ASYNCIFY_IMPORTS`/`ASYNCIFY_ONLY` allow-listing, or an emscripten-version-specific Asyncify API change) — out of this task's scope.

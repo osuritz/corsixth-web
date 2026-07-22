@@ -6,6 +6,8 @@ set(LPEG_SRC_FILES "")
 set(LPEG_HRC_FILES "")
 set(LFS_SRC_FILES "")
 set(LFS_HRC_FILES "")
+set(LUA54_SRC_FILES "")
+set(LUA54_HRC_FILES "")
 if (EMSCRIPTEN)
     include(FetchContent)
     FetchContent_Declare(lpeg
@@ -20,8 +22,15 @@ if (EMSCRIPTEN)
             SOURCE_DIR "${CMAKE_BINARY_DIR}/ep_lfs"
             DOWNLOAD_EXTRACT_TIMESTAMP false
     )
+    FetchContent_Declare(lua54
+            GIT_REPOSITORY "https://github.com/lua/lua.git"
+            GIT_TAG v5.4.8
+            SOURCE_DIR "${CMAKE_BINARY_DIR}/ep_lua54"
+            DOWNLOAD_EXTRACT_TIMESTAMP false
+    )
     FetchContent_MakeAvailable(lpeg)
     FetchContent_MakeAvailable(lfs)
+    FetchContent_MakeAvailable(lua54)
 
     file(GLOB LPEG_SRC_FILES
             ${lpeg_SOURCE_DIR}/*.c
@@ -35,6 +44,11 @@ if (EMSCRIPTEN)
     file(GLOB LFS_HRC_FILES
             ${lfs_SOURCE_DIR}/src/*.h
     )
+    file(GLOB LUA54_SRC_FILES ${lua54_SOURCE_DIR}/*.c)
+    list(FILTER LUA54_SRC_FILES EXCLUDE REGEX "(lua|luac|onelua)\\.c$")
+    file(GLOB LUA54_HRC_FILES ${lua54_SOURCE_DIR}/*.h)
+
+    target_include_directories(CorsixTH_lib PUBLIC ${lua54_SOURCE_DIR})
 endif ()
 
 target_sources(CorsixTH_lib
@@ -72,6 +86,7 @@ target_sources(CorsixTH_lib
 
     ${LPEG_SRC_FILES}
     ${LFS_SRC_FILES}
+    ${LUA54_SRC_FILES}
 )
 
 # These are for IDEs such as XCode and MSVC to track headers within their
@@ -102,6 +117,7 @@ target_sources(CorsixTH_lib
 
     ${LPEG_HRC_FILES}
     ${LFS_HRC_FILES}
+    ${LUA54_HRC_FILES}
 
     ${CMAKE_BINARY_DIR}/CorsixTH/Src/config.h
 )
