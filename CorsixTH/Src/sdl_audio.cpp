@@ -150,8 +150,17 @@ int l_load_music_async(lua_State* L) {
       call the callback and remove the new entries from the registry.
   */
 
+#ifdef __EMSCRIPTEN__
+  // Single-threaded wasm build: no worker threads. Run the loader
+  // synchronously — load_music_async_thread pushes
+  // SDL_USEREVENT_MUSIC_LOADED itself, so the main loop's existing
+  // callback path is preserved unchanged.
+  async->thread = nullptr;
+  load_music_async_thread(async);
+#else
   async->thread =
       SDL_CreateThread(load_music_async_thread, "music_thread", async);
+#endif
 
   return 0;
 }
