@@ -219,7 +219,7 @@ The last boot blocker from addendum 2 — `Aborted(TypeError: _asyncify_start_un
 -sASYNCIFY_STACK_SIZE=32768
 ```
 
-The JS glue (`corsix-th.js`) referenced the Asyncify runtime (`_asyncify_start_unwind`, `_asyncify_stop_unwind`, `_asyncify_start_rewind`, `_asyncify_stop_rewind`, 59 `Asyncify` hits), but the wasm binary carried no asyncify machinery — the JS wrapper's call to `wasmExports.asyncify_start_unwind` resolved to `undefined` at runtime → the TypeError.
+The JS glue (`corsix-th.js`) references the Asyncify runtime (`asyncify_start_unwind`/`_stop_unwind`/`_start_rewind`/`_stop_rewind` wrappers — on the current post-fix artifact `grep -o 'Asyncify' build-wasm/CorsixTH/corsix-th.js | wc -l` → **57**, and case-insensitive `grep -o -i 'asyncify' … | wc -l` → **71**), yet in the failing (pre-fix, `-sEXPORT_ALL`) build the wasm binary carried no asyncify machinery — so the JS wrapper's call to `wasmExports.asyncify_start_unwind` resolved to `undefined` at runtime → the TypeError. The asyncify JS runtime is emitted regardless of the bug; the defect was purely wasm-side, which is why those same JS-side references persist unchanged in the fixed build.
 
 The culprit was isolated with a minimal `emscripten_sleep()` repro (emcc 6.0.3, in-container, scratch dir), first by additive/subtractive flag bisection and then confirmed **functionally** by running each variant in node:
 
@@ -231,13 +231,51 @@ The culprit was isolated with a minimal `emscripten_sleep()` repro (emcc 6.0.3, 
 
 Mechanism: at `-Os` emscripten minifies wasm import/export names (and rewrites the JS glue to match). `-sEXPORT_ALL` force-exports every symbol under its **full** name, which breaks that minification's consistency, so the Asyncify runtime exports the JS glue expects (`asyncify_start_unwind`, ...) are no longer reachable — hence "is not a function" the instant `SDL.mainloop` (`l_mainloop`, `CorsixTH/Src/sdl_core.cpp:134`) tries to unwind out of its blocking `SDL_WaitEvent`. This is precisely the "EXPORT_ALL + MODULARIZE glue minification renaming/omitting asyncify exports" known-suspect from the task lead. (Note: a plain `strings corsix-th.wasm | grep asyncify` is a *false-negative* discriminator here — at `-Os` the export names are minified out of the binary even in a working build; only the functional run in node is authoritative.)
 
+### Verbatim repro evidence
+
+Reproduced in `emscripten/emsdk:latest`. Source `t.c`: `int main(){ printf("before sleep\n"); emscripten_sleep(100); printf("after sleep\n"); return 0; }`. `harness.js`: loads the MODULARIZE factory and logs `HARNESS: module resolved OK` on resolve, `HARNESS: caught <msg>` on reject. Both variants are run in node, so they omit only `-sENVIRONMENT=web` from the CorsixTH link set — that flag selects the JS environment target and is orthogonal to the EXPORT_ALL/asyncify interaction (the browser boot under the full flag set, below, exhibits the identical failure/fix). The two `emcc` command lines are the full CorsixTH linker flag list, unelided, differing only by the trailing `-sEXPORT_ALL`:
+
+```text
+emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.3 (283e2d130132859fde6a4e4c87fd254b38127651)
+
+############ VARIANT A (FAILING): with -sEXPORT_ALL ############
+$ emcc t.c -o A.js -sASYNCIFY -Os -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=128mb -sMEMORY_GROWTH_LINEAR_STEP=32mb -sMODULARIZE -sCASE_INSENSITIVE_FS=1 -lidbfs.js -lwebsocket.js -sEXPORTED_RUNTIME_METHODS=callMain,addRunDependency,removeRunDependency -sEXIT_RUNTIME -sNO_DISABLE_EXCEPTION_CATCHING -sASYNCIFY_STACK_SIZE=32768 -sEXPORT_ALL
+$ node harness.js ./A.js
+before sleep
+Aborted(TypeError: _asyncify_start_unwind is not a function)
+HARNESS: caught Aborted(TypeError: _asyncify_start_unwind is not a function). Build with -sASSERTIONS for more info.
+
+############ VARIANT B (PASSING): without -sEXPORT_ALL ############
+$ emcc t.c -o B.js -sASYNCIFY -Os -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=128mb -sMEMORY_GROWTH_LINEAR_STEP=32mb -sMODULARIZE -sCASE_INSENSITIVE_FS=1 -lidbfs.js -lwebsocket.js -sEXPORTED_RUNTIME_METHODS=callMain,addRunDependency,removeRunDependency -sEXIT_RUNTIME -sNO_DISABLE_EXCEPTION_CATCHING -sASYNCIFY_STACK_SIZE=32768
+$ node harness.js ./B.js
+before sleep
+HARNESS: module resolved OK
+after sleep
+```
+
+Post-fix CorsixTH artifact evidence (run from repo root after `build/build.sh`; commands shown so numbers are reproducible):
+
+```text
+$ grep -o -- '-sASYNCIFY[A-Za-z_=0-9]*' build-wasm/CorsixTH/CMakeFiles/CorsixTH.dir/link.txt | sort -u
+-sASYNCIFY
+-sASYNCIFY_STACK_SIZE=32768
+$ grep -c -- '-sEXPORT_ALL' build-wasm/CorsixTH/CMakeFiles/CorsixTH.dir/link.txt
+0
+$ wc -c < build-wasm/CorsixTH/corsix-th.js
+238597
+$ grep -o 'Asyncify' build-wasm/CorsixTH/corsix-th.js | wc -l
+57
+$ grep -o -i 'asyncify' build-wasm/CorsixTH/corsix-th.js | wc -l
+71
+```
+
 ### The fix (minimal)
 
 `CorsixTH/CMakeLists.txt`, EMSCRIPTEN block only — removed the single `-sEXPORT_ALL` line from `CMAKE_EXE_LINKER_FLAGS`, with an inline comment recording why. Nothing else changed. `-sEXPORT_ALL` was inherited from the base branch and already flagged as "suspicious (bloat / apparently unused)" in the M0/M1 plan; the dev harness (`web/dev/index.html`) boots via the standard MODULARIZE factory + `callMain` (already an exported runtime method) and calls no C symbol directly, so removing it is safe. Confirmed post-fix: `EXPORT_ALL` absent from `link.txt`, `-sASYNCIFY`/`-sASYNCIFY_STACK_SIZE` still present.
 
 ### Build result
 
-`build/build.sh clean` (full from-scratch Docker build, emscripten/emsdk:latest, emcc 6.0.3) — succeeded, ~58s. Artifacts: `corsix-th.js` (263 KB), `corsix-th.wasm` (3.4 MB), `corsix-th.data` (15 MB).
+`build/build.sh clean` (full from-scratch Docker build, emscripten/emsdk:latest, emcc 6.0.3) — succeeded, ~58s. Artifacts (`wc -c`): `corsix-th.js` 238,597 B (~233 KB), `corsix-th.wasm` 3,443,339 B (~3.4 MB), `corsix-th.data` 15,484,956 B (~15 MB).
 
 ### Boot re-test
 
