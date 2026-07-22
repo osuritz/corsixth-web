@@ -102,3 +102,60 @@ Blocker (verbatim + file:line trace, no fix applied — no engine-source changes
 - `CorsixTH/CMakeLists.txt:132-143`: the actual preloaded location, set up by this same build, is `/corsixth/CorsixTH.lua` (via `--preload-file "<file>@/corsixth/<relative_file>"` over `CorsixTH.lua`, `Lua/*.lua`, `Bitmap/*`, `Campaigns/*`, `Levels/*`) — a path none of `search_script_file()`'s 3 candidates ever check.
 
 Top M1 fix item: add an `elseif(EMSCRIPTEN)` branch in `CorsixTH/CMakeLists.txt:20-31` setting `CORSIX_TH_INTERPRETER_PATH` (and/or `CORSIX_TH_DATADIR`) to `/corsixth/CorsixTH.lua`, so the engine can locate its own bundled interpreter and progress to actual Theme-Hospital-data-missing logic. Until this lands, boot cannot progress further **regardless of TH game data availability**.
+
+## Post-M0 addendum: interpreter-path fix (Task 2.5)
+
+**Authorized by:** controller (EP), plan amendment converting the row-1 boot-blocker above into a fix now, ahead of M1 hardening.
+
+### The change
+
+`CorsixTH/CMakeLists.txt:20-31` — added an `elseif(EMSCRIPTEN)` branch, placed before the generic `else()`, mirroring the sibling branches' two-variable pattern (each of `USE_SOURCE_DATADIRS` / `MSVC` / `APPLE` / generic-`else` sets both `CORSIX_TH_DATADIR` and `CORSIX_TH_INTERPRETER_PATH`, using `${CORSIX_TH_INTERPRETER_NAME}` rather than a hardcoded literal, no `CACHE`/type args since no sibling uses them):
+
+```cmake
+elseif(EMSCRIPTEN)
+  # Engine Lua files are preloaded into the wasm virtual FS at /corsixth/
+  set(CORSIX_TH_DATADIR /corsixth)
+  set(CORSIX_TH_INTERPRETER_PATH ${CORSIX_TH_DATADIR}/${CORSIX_TH_INTERPRETER_NAME})
+```
+
+Deviation from the brief's literal 2-line illustrative snippet, discovered empirically: the brief's snippet set only `CORSIX_TH_INTERPRETER_PATH`. A first attempt matching that literally left `CORSIX_TH_DATADIR` unset for `EMSCRIPTEN`, which broke `cmake` **configure** itself — `CORSIX_TH_DATADIR` is referenced unconditionally later in three `install()` calls (`CorsixTH/CMakeLists.txt:349-353`, e.g. `install(DIRECTORY Campaigns Lua Levels DESTINATION ${CORSIX_TH_DATADIR})`), and CMake errors on an empty-string `DESTINATION` regardless of whether the install step is ever invoked. Setting `CORSIX_TH_DATADIR` too — exactly as every sibling branch already does — is a completion of the same single authorized branch, not a second edit site; no other line/branch/file was touched.
+
+### Rebuild result
+
+`build/build.sh` (no `clean`, incremental — CMake reconfigured automatically): **exit 0** on the first attempt after the fix (a prior attempt, before adding the `CORSIX_TH_DATADIR` line, failed at configure with `CMake Error ... install DIRECTORY given no DESTINATION!`, as described above). Artifacts refreshed at `build-wasm/CorsixTH/`:
+- `corsix-th.js` — 268,908 bytes
+- `corsix-th.wasm` — 3,462,886 bytes
+- `corsix-th.data` — 15,484,956 bytes
+
+### Boot re-test
+
+Same flow as the M0 boot attempt: `build/serve.sh` (port 8123) + `web/dev/index.html` harness + Chrome DevTools MCP, observed ~15s post-load with no further console change after the initial burst (stable end state).
+
+Network requests (all HTTP 200): `index.html`, `corsix-th.js`, `corsix-th.data`, `corsix-th.wasm`.
+
+Console output (verbatim, in order):
+1. `[warn] [stderr] An error has occurred in CorsixTH:`
+2. `[warn] [stderr] /corsixth/CorsixTH.lua:79: Please recompile CorsixTH and link against Lua version 5.1, 5.2, 5.3 or 5.4`
+3. `[warn] [stderr] stack traceback:`
+4. `[warn] [stderr] 	[C]: in global 'error'`
+5. `[warn] [stderr] 	/corsixth/CorsixTH.lua:79: in main chunk`
+6. `[warn] [stderr] 	[C]: in ?`
+7. `[warn] [stderr] Aborted(TypeError: _asyncify_start_unwind is not a function)`
+8. `[error] [harness] instantiation failed RuntimeError: Aborted(TypeError: _asyncify_start_unwind is not a function). Build with -sASSERTIONS for more info.`
+
+Screenshot: `docs/superpowers/reports/m0-boot-fixed.png` — no longer a solid black canvas (contrast with `m0-boot.png`). Shows the engine's own bootstrap error-report UI rendered on-canvas: white bitmap-font text reading "An error has occurred in CorsixTH:", the Lua-version message, a 3-line stack traceback, and a red "Exit" button — i.e. `bootstrap_lua_error_report` (`CorsixTH/Src/bootstrap.cpp`) ran a full Lua + font + palette + sheet render cycle inside the wasm sandbox before the runtime aborted.
+
+### Root-cause trace (source-level only, no further engine edits — not authorized this task)
+
+- **Confirms the fix worked**: `search_script_file()` now resolves `/corsixth/CorsixTH.lua` and the engine's own bootstrap Lua script executes (console messages 2/5 show `/corsixth/CorsixTH.lua:79`, not the old "cannot find CorsixTH.lua" message from the base M0 report). This is real progress past the row-1 blocker this task set out to fix.
+- **New blocker 1 (primary)**: `CorsixTH/CorsixTH.lua:76-79` — `local support = list_to_set({"Lua 5.1", "Lua 5.2", "Lua 5.3", "Lua 5.4"}); if not support[_VERSION] then error "Please recompile CorsixTH and link against Lua version 5.1, 5.2, 5.3 or 5.4" end`. Per the base M0 report's Task 1.5 section, `CorsixTH/CMakeLists.txt`'s `--use-port=contrib.lua` resolves, on `emsdk:latest`, to Lua 5.5 (`lua-5.5.0.tar.gz`). The `luafilesystem` version guard was already bumped in Task 1.5 to accept 5.5, but this separate, engine-level version allowlist in `CorsixTH.lua` itself was not — it still only accepts 5.1-5.4, so it rejects the linked 5.5 runtime and calls `error(...)`, which is exactly the message reported.
+- **New blocker 2 (secondary, uncovered only because blocker 1's error-reporting path was reached)**: `Aborted(TypeError: _asyncify_start_unwind is not a function)`. The bootstrap error screen's single static frame renders successfully (confirmed by the screenshot), but it then calls `SDL.mainloop(coroutine.create(...))` (`CorsixTH/Src/bootstrap.cpp:82`) → `l_mainloop` (`CorsixTH/Src/sdl_core.cpp:134`), which blocks in a `while (SDL_WaitEvent(&e) != 0)` loop. Under Emscripten this blocking wait needs Asyncify to yield to the browser event loop; the JS glue calls an Asyncify runtime function (`_asyncify_start_unwind`) that is apparently not present/exported despite `-sASYNCIFY` being linked (`CorsixTH/CMakeLists.txt`, EMSCRIPTEN link flags). Root cause not fully diagnosed beyond this call-site trace (Asyncify import/allow-list configuration was not investigated further — out of scope for a "cheaply traceable" check, and no engine/build edits are authorized here). Because `SDL.mainloop`/`l_mainloop` is the same binding used by the normal game loop (not just the bootstrap error UI), this blocker is likely to recur on the happy path too, once blocker 1 is fixed — flagging for M1 planning.
+
+### Classification
+
+**PROGRESS with new blocker(s)** — not BOOT SUCCESS. The engine did not reach TH-data-related behavior (no missing-data message, config creation, or directory-browser UI); it hit an internal Lua-version compatibility guard (a build-toolchain/engine-source mismatch unrelated to TH game data), then a secondary Asyncify runtime abort while trying to render the resulting error screen interactively. Per the brief's Step 4 criteria, this is squarely the "hits a NEW blocker" case: console output recorded verbatim above, file:line root causes traced where cheaply possible, no further fix applied.
+
+### Next blocker(s) for follow-up (not fixed in this task)
+
+1. `CorsixTH/CorsixTH.lua:79` Lua-version allowlist (5.1-5.4) vs. the Lua 5.5 pulled by the `contrib.lua` Emscripten port on `emsdk:latest` — needs a source-level decision (widen the engine's allowlist vs. pin the Emscripten Lua port to an older release) outside this task's authorization.
+2. `Aborted(TypeError: _asyncify_start_unwind is not a function)` surfacing from `l_mainloop`'s (`CorsixTH/Src/sdl_core.cpp:134`) blocking `SDL_WaitEvent` loop under Emscripten/Asyncify — needs investigation into the Asyncify build configuration; likely blocks any interactive frame loop, not only the bootstrap error screen.
