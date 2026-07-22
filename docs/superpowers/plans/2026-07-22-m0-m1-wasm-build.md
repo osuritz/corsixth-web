@@ -369,6 +369,8 @@ PY
 
 Save as `build/check-artifacts.sh`, then: `chmod +x build/check-artifacts.sh`
 
+> **AMENDED during execution:** the banned-substring scan above false-positives on the engine's own bundled Lua source, which legitimately *references* TH filenames (`VBlk-0.tab`, `Demo.dat`) in its file-checking code. The shipped script replaces the content-substring scan with a **preload-manifest path allowlist**: parse the file-packager manifest embedded in `corsix-th.js`, assert every preloaded path is under `/corsixth/` within `{CorsixTH.lua, Lua/, Bitmap/, Campaigns/, Levels/}` (mirroring the CMake preload glob), and FAIL on any other path. The PThread check and the `/corsixth/CorsixTH.lua` presence check stay as designed.
+
 - [ ] **Step 2: Verify it fails without artifacts (negative test)**
 
 Run: `mv build-wasm /tmp/build-wasm-stash && build/check-artifacts.sh; echo "exit=$?"; mv /tmp/build-wasm-stash build-wasm`
