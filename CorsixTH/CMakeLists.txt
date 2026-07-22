@@ -128,6 +128,10 @@ if (EMSCRIPTEN)
   # SDL.mainloop tries to unwind. Minimal repro: -sASYNCIFY -Os -sMODULARIZE
   # -sEXPORT_ALL. The harness boots via callMain (already an exported runtime
   # method) and calls no C symbols directly, so EXPORT_ALL was pure bloat here.
+  # NOTE (Task 2.1): FS,ENV added to EXPORTED_RUNTIME_METHODS below. The shell's
+  # preRun needs Module.FS (mounts/syncfs — not attached to Module unless
+  # exported under -Os/MODULARIZE) and Module.ENV (HOME-dependent path
+  # resolution, app.lua:1465).
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} \
   -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
   -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=128mb -sMEMORY_GROWTH_LINEAR_STEP=32mb \
@@ -135,7 +139,7 @@ if (EMSCRIPTEN)
   -sMODULARIZE \
   -lidbfs.js -sCASE_INSENSITIVE_FS=1 \
   -lwebsocket.js \
-  -sEXPORTED_RUNTIME_METHODS=callMain,addRunDependency,removeRunDependency \
+  -sEXPORTED_RUNTIME_METHODS=callMain,addRunDependency,removeRunDependency,FS,ENV \
   -sEXIT_RUNTIME \
   -Wno-pthreads-mem-growth")
 
