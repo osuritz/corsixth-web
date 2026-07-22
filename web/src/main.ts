@@ -1,4 +1,5 @@
 import { buildModuleConfig, type EmFS } from './fs-setup';
+import { listAssetPaths, clearAssets, populateThData, validateAssetPaths } from './idb';
 
 declare const Module: (config: object) => Promise<unknown>;
 
@@ -23,5 +24,18 @@ export async function bootEngine(populateData: (FS: EmFS) => Promise<number>): P
   finally { clearTimeout(watchdog); }
 }
 
-// Task 3 replaces this bootstrap with the assets-present check + onboarding branch.
-void bootEngine(async () => 0);
+export async function startShell(): Promise<void> {
+  const paths = await listAssetPaths().catch(() => [] as string[]);
+  if (paths.length > 0) {
+    const { ok, missing } = validateAssetPaths(paths);
+    if (ok) return bootEngine(populateThData);
+    // Stored set is damaged (partial write, quota eviction) — recover to onboarding
+    // instead of booting the engine into an invisible installer UI.
+    console.error('[shell] stored assets invalid, missing:', missing);
+    await clearAssets().catch(() => undefined);
+    setStatus('Stored game data was incomplete — please load it again.', true);
+    return;
+  }
+  setStatus('No game data yet — onboarding arrives in the next task.');
+}
+void startShell();
