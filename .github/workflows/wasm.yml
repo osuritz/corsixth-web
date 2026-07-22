@@ -1,0 +1,31 @@
+name: WASM build
+
+on:
+  push:
+    branches: [wasm]
+  pull_request:
+    branches: [wasm]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: emscripten/emsdk:6.0.3   # keep in lockstep with build/build.sh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure and build
+        run: |
+          emcmake cmake -B build-wasm -DCMAKE_BUILD_TYPE=Release \
+            -DWITH_MOVIES=OFF -DWITH_UPDATE_CHECK=OFF -DWITH_LUAJIT=OFF
+          cmake --build build-wasm -j"$(nproc)"
+
+      - name: Artifact hygiene gate
+        run: build/check-artifacts.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corsixth-wasm
+          path: |
+            build-wasm/**/corsix-th.js
+            build-wasm/**/corsix-th.wasm
+            build-wasm/**/corsix-th.data
