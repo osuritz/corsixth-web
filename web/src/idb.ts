@@ -20,6 +20,10 @@ function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBReque
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
     t.oncomplete = () => db.close();
+    // AMENDED (Task 3 review): a failed request aborts the transaction, and
+    // 'complete' never fires on abort — close there too or every failed
+    // put/get leaks the connection (matters for Task 4's bulk ingest).
+    t.onabort = () => db.close();
   }));
 }
 
