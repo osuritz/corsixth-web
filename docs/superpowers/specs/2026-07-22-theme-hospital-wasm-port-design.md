@@ -90,13 +90,14 @@ Static hosting; GitHub Pages initially (no special headers required). Repo and d
 - **E2E smoke test** (Playwright or Chrome DevTools MCP), which *is* the v1 acceptance test: boot → demo assets onboarded → start first level → save → reload page → load the save.
 - Audio requires a user-gesture unlock (autoplay policy) — the onboarding click doubles as it.
 - Early audit: which audio formats do shipped TH assets actually use vs. what Emscripten's reduced SDL2_mixer port decodes (vcpkg wants fluidsynth/libmodplug/mpg123/opusfile — the port won't have all of that).
+- M1 CI gates build + artifact hygiene only — it does NOT yet gate boot/runtime correctness (the EXPORT_ALL asyncify regression compiled green). A headless boot smoke test is the top M2 CI item.
 
 ## Milestones
 
 | # | Deliverable | Exit criterion |
 |---|---|---|
 | **M0** | Spike build of base branch in Docker | Evidence report: compiles? boots? what breaks? |
-| **M1** | Reproducible build + zero-thread patch | `docker …` one-liner produces `corsixth.{js,wasm,data}` (lpeg/lfs pins already exact — verify only); Emscripten sync-music patch landed; CI green |
+| **M1** | Reproducible build + zero-thread patch | `docker …` one-liner produces `corsix-th.{js,wasm,data}` (lpeg/lfs/lua pinned to exact hashes; lfs bumped to v1_9_0 during execution); Emscripten sync-music patch landed; CI green |
 | **M2** | Web shell | Demo-fetch + drag-drop onboarding working; IDBFS saves survive reload (verified by test) |
 | **M3** | Playable slice | E2E smoke test green; input-latency check → loop restructure only if Asyncify underperforms; deployed to Pages |
 

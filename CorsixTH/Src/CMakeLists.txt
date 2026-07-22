@@ -16,6 +16,7 @@ if (EMSCRIPTEN)
             SOURCE_DIR "${CMAKE_BINARY_DIR}/ep_lpeg"
             DOWNLOAD_EXTRACT_TIMESTAMP false
     )
+    # v1_9_0: supports Lua 5.1-5.5; bumped from 0951178 (5.1-5.4) during M0 triage, kept for forward-compat
     FetchContent_Declare(lfs
             GIT_REPOSITORY "https://github.com/lunarmodules/luafilesystem.git"
             GIT_TAG a186cca5833691e830ed255e38ace8ff6b870dbf
@@ -24,7 +25,7 @@ if (EMSCRIPTEN)
     )
     FetchContent_Declare(lua54
             GIT_REPOSITORY "https://github.com/lua/lua.git"
-            GIT_TAG v5.4.8
+            GIT_TAG 6e22fedb74cf0c9b6656e9fce8b7331db847c605 # v5.4.8
             SOURCE_DIR "${CMAKE_BINARY_DIR}/ep_lua54"
             DOWNLOAD_EXTRACT_TIMESTAMP false
     )

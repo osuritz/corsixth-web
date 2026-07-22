@@ -15,7 +15,6 @@ CorsixTH/config.txt
 Thumbs.db
 
 # This is for the CMake-generated XCode project and output
-/build/
 *.xcodeproj/
 Debug/
 Release/
@@ -29,8 +28,8 @@ RelWithDebInfo/
 # Ignore the folder where libraries are pre-compiled
 vcpkg/
 
-# Build folders
-/build*/
+# Build folders (our tracked build/ scripts dir is intentionally not ignored)
+/build-wasm/
 
 # OSX metadata
 .DS_Store

@@ -12,11 +12,14 @@ if [[ -z "$JS" || -z "$DATA" || -z "$WASM" ]]; then
     exit 1
 fi
 
-python3 - "$JS" "$DATA" "$WASM" <<'PY'
+# NOTE: $DATA is asserted to exist above but is deliberately not passed to the
+# scan below — the preload manifest embedded in corsix-th.js is authoritative
+# for what the .data blob contains, so its content is not scanned separately.
+python3 - "$JS" "$WASM" <<'PY'
 import re
 import sys
 
-js_path, data_path, wasm_path = sys.argv[1], sys.argv[2], sys.argv[3]
+js_path, wasm_path = sys.argv[1], sys.argv[2]
 js_bytes = open(js_path, 'rb').read()
 wasm_bytes = open(wasm_path, 'rb').read()
 js_text = js_bytes.decode('utf-8', errors='surrogateescape')

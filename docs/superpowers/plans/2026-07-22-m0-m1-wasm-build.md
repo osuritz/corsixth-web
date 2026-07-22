@@ -34,6 +34,8 @@
 | `.github/workflows/wasm.yml` | CI: build + hygiene checks + artifact upload on the `wasm` branch |
 | `docs/superpowers/reports/2026-07-22-m0-spike-report.md` | M0 evidence report (the milestone deliverable) |
 
+> **AMENDED in execution:** M0/M1 ultimately required five authorized engine-tree deltas — sdl_audio.cpp sync-music #ifdef; CORSIX_TH_INTERPRETER_PATH/DATADIR EMSCRIPTEN branch; Lua 5.4 FetchContent replacing contrib.lua port; lfs pin bump to v1_9_0; -sEXPORT_ALL removal. Each was individually authorized and reviewed; see the spike report addenda.
+
 ---
 
 ## M0 — Evidence Spike
@@ -454,5 +456,5 @@ Diff the environments, not the code: container tag mismatch with `build/build.sh
 ## Self-Review Notes
 
 - Spec coverage: M0 spike (Tasks 1–2 = spec §Verification M0 gate), reproducible Docker build (Task 3 = M1 exit criterion), sync-music/zero-thread patch (Task 4 = spec §V1 build config), engine-only artifact guarantee (Task 5 = spec §Deployment + global constraint), CI (Task 6 = spec §Deployment). Deliberately NOT in this plan (deferred to the M2/M3 plan, pending M0 evidence): web shell onboarding, IDBFS syncfs error propagation, archive.org CORS spike, memory-budget work, E2E smoke test, ISO bypass.
-- The `-sEXPORT_ALL`, `-sEXIT_RUNTIME`, `-lwebsocket.js` flags inherited from the base branch are suspicious (bloat / odd-for-a-game / apparently unused) but are NOT touched in M0/M1 — churn on unproven ground is how spikes die. Logged for the M2 plan.
+- The `-sEXPORT_ALL`, `-sEXIT_RUNTIME`, `-lwebsocket.js` flags inherited from the base branch are suspicious (bloat / odd-for-a-game / apparently unused) but are NOT touched in M0/M1 — churn on unproven ground is how spikes die. Logged for the M2 plan. (AMENDED: `-sEXPORT_ALL` was subsequently removed in Task 2.7 — it broke Asyncify exports under `-Os`; see spike report addendum 3.)
 - Type/name consistency: artifact names (`corsix-th.js/.wasm/.data` — corrected from `CorsixTH.*` after Task 1.5 discovered the `OUTPUT_NAME corsix-th` target property), port 8123, `build-wasm/`, and the emsdk pin appear in Tasks 1/2/3/5/6 — all consistent; Task 3 and Task 6 both carry the "keep in lockstep" note.
