@@ -120,6 +120,14 @@ if (EMSCRIPTEN)
   -sNO_DISABLE_EXCEPTION_CATCHING -Os")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${USE_FLAGS}")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${USE_FLAGS}")
+  # NOTE (Task 2.7): -sEXPORT_ALL removed. At -Os emscripten minifies wasm
+  # import/export names; -sEXPORT_ALL force-exports every symbol under its full
+  # name and breaks that minification's consistency, so the Asyncify runtime
+  # exports (asyncify_start_unwind, ...) become unreachable from the JS glue ->
+  # "Aborted(TypeError: _asyncify_start_unwind is not a function)" the moment
+  # SDL.mainloop tries to unwind. Minimal repro: -sASYNCIFY -Os -sMODULARIZE
+  # -sEXPORT_ALL. The harness boots via callMain (already an exported runtime
+  # method) and calls no C symbols directly, so EXPORT_ALL was pure bloat here.
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} \
   -sASYNCIFY -sASYNCIFY_STACK_SIZE=32768 \
   -sALLOW_MEMORY_GROWTH -sINITIAL_MEMORY=128mb -sMEMORY_GROWTH_LINEAR_STEP=32mb \
@@ -128,7 +136,6 @@ if (EMSCRIPTEN)
   -lidbfs.js -sCASE_INSENSITIVE_FS=1 \
   -lwebsocket.js \
   -sEXPORTED_RUNTIME_METHODS=callMain,addRunDependency,removeRunDependency \
-  -sEXPORT_ALL \
   -sEXIT_RUNTIME \
   -Wno-pthreads-mem-growth")
 

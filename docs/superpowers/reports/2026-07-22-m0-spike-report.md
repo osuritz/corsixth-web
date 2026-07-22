@@ -205,3 +205,59 @@ Screenshot: `docs/superpowers/reports/m0-boot-lua54.png` — a solid black canva
 ### Next blocker for follow-up (not fixed in this task)
 
 `Aborted(TypeError: _asyncify_start_unwind is not a function)` — the sole remaining item between current state and further boot progress. Per Task 2.5's trace, this originates in `SDL.mainloop`/`l_mainloop` (`CorsixTH/Src/sdl_core.cpp:134`)'s blocking `SDL_WaitEvent` loop needing Asyncify to yield to the browser event loop; `-sASYNCIFY` is linked (`CorsixTH/CMakeLists.txt`) but the expected `_asyncify_start_unwind` export/import appears missing or misconfigured. Needs Asyncify build-configuration investigation (e.g. `ASYNCIFY_IMPORTS`/`ASYNCIFY_ONLY` allow-listing, or an emscripten-version-specific Asyncify API change) — out of this task's scope.
+
+## Post-M0 addendum 3: Asyncify fix (Task 2.7)
+
+The last boot blocker from addendum 2 — `Aborted(TypeError: _asyncify_start_unwind is not a function)` — is fixed. The engine now boots into its real SDL main loop and renders its interactive graphical UI.
+
+### Root cause (evidenced)
+
+`-sASYNCIFY` **did** reach the final link command — disproving the "flag mangled before the linker" hypothesis. Extracted from the generated `build-wasm/CorsixTH/CMakeFiles/CorsixTH.dir/link.txt` (tokens 54-55):
+
+```
+-sASYNCIFY
+-sASYNCIFY_STACK_SIZE=32768
+```
+
+The JS glue (`corsix-th.js`) referenced the Asyncify runtime (`_asyncify_start_unwind`, `_asyncify_stop_unwind`, `_asyncify_start_rewind`, `_asyncify_stop_rewind`, 59 `Asyncify` hits), but the wasm binary carried no asyncify machinery — the JS wrapper's call to `wasmExports.asyncify_start_unwind` resolved to `undefined` at runtime → the TypeError.
+
+The culprit was isolated with a minimal `emscripten_sleep()` repro (emcc 6.0.3, in-container, scratch dir), first by additive/subtractive flag bisection and then confirmed **functionally** by running each variant in node:
+
+| variant (all with `-sASYNCIFY`) | runtime result |
+|---|---|
+| `-Os -sMODULARIZE ...full flag set... -sEXPORT_ALL` | `before sleep` then **`Aborted(TypeError: _asyncify_start_unwind is not a function)`** — exact match to the CorsixTH failure |
+| same set **without** `-sEXPORT_ALL` | `before sleep` → `module resolved OK` → `after sleep` — works |
+| minimal trigger `-sASYNCIFY -Os -sMODULARIZE -sEXPORT_ALL` | reproduces the abort |
+
+Mechanism: at `-Os` emscripten minifies wasm import/export names (and rewrites the JS glue to match). `-sEXPORT_ALL` force-exports every symbol under its **full** name, which breaks that minification's consistency, so the Asyncify runtime exports the JS glue expects (`asyncify_start_unwind`, ...) are no longer reachable — hence "is not a function" the instant `SDL.mainloop` (`l_mainloop`, `CorsixTH/Src/sdl_core.cpp:134`) tries to unwind out of its blocking `SDL_WaitEvent`. This is precisely the "EXPORT_ALL + MODULARIZE glue minification renaming/omitting asyncify exports" known-suspect from the task lead. (Note: a plain `strings corsix-th.wasm | grep asyncify` is a *false-negative* discriminator here — at `-Os` the export names are minified out of the binary even in a working build; only the functional run in node is authoritative.)
+
+### The fix (minimal)
+
+`CorsixTH/CMakeLists.txt`, EMSCRIPTEN block only — removed the single `-sEXPORT_ALL` line from `CMAKE_EXE_LINKER_FLAGS`, with an inline comment recording why. Nothing else changed. `-sEXPORT_ALL` was inherited from the base branch and already flagged as "suspicious (bloat / apparently unused)" in the M0/M1 plan; the dev harness (`web/dev/index.html`) boots via the standard MODULARIZE factory + `callMain` (already an exported runtime method) and calls no C symbol directly, so removing it is safe. Confirmed post-fix: `EXPORT_ALL` absent from `link.txt`, `-sASYNCIFY`/`-sASYNCIFY_STACK_SIZE` still present.
+
+### Build result
+
+`build/build.sh clean` (full from-scratch Docker build, emscripten/emsdk:latest, emcc 6.0.3) — succeeded, ~58s. Artifacts: `corsix-th.js` (263 KB), `corsix-th.wasm` (3.4 MB), `corsix-th.data` (15 MB).
+
+### Boot re-test
+
+`build/serve.sh` (port 8123) → Chrome DevTools MCP `new_page` on `http://localhost:8123/index.html`. All 4 network requests HTTP 200 (`index.html`, `corsix-th.js`, `corsix-th.data` 15 MB, `corsix-th.wasm`).
+
+Console output (verbatim, in order):
+1. `[log] [harness] module instantiated`
+2. `[log] [stdout] Welcome to CorsixTH v0.69.1-dev235!`
+3. `[log] [stdout] This window will display useful information if an error occurs.`
+4. `[log] [stdout] Unicode font not found, no fallback available.`
+5. `[warn] The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead.` (SDL2_mixer audio init)
+
+**No asyncify TypeError. No abort.** The module fully instantiated, `main()` ran, SDL video+audio initialized, and the CorsixTH Lua engine started and drove its SDL main loop — which only renders/stays interactive because Asyncify is now yielding to the browser event loop.
+
+Screenshot: `docs/superpowers/reports/m0-boot-asyncify.png` — the fully rendered CorsixTH graphical menu (hospital scene, "CorsixTH" road sign, logo building) with the interactive **"CorsixTH Setup"** dialog on top: *"CorsixTH needs a copy of the data files from the original Theme Hospital game (or demo) in order to run. Please use the below selector to locate the Theme Hospital install directory."* — plus a working directory-browser tree (`/`, `corsixth`, `dev`, `home`, `proc`, `tmp`, expandable) and OK / Exit buttons that respond to the event loop.
+
+### Classification
+
+**Genuine BOOT SUCCESS.** The engine proceeded through `SDL.mainloop` into the real game loop and rendered an interactive, event-driven UI — exactly the "TH-data-missing handling (message/UI/directory browser)" landing the task defined as boot success. This is the M0 boot-chain goal reached: interpreter path ✅ (2.5), Lua 5.4 ✅ (2.6), Asyncify ✅ (2.7).
+
+### Next step (not a blocker — expected, out of scope)
+
+The engine is doing the correct thing for a fresh install with no game data: prompting for the Theme Hospital data directory. Providing/mounting TH game data (and font handling for the "Unicode font not found" notice) is downstream product work (M2+), not a boot defect.
