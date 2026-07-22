@@ -45,7 +45,7 @@
 - Create: `docs/superpowers/reports/2026-07-22-m0-spike-report.md`
 
 **Interfaces:**
-- Produces: `build/build.sh [clean]` → on success, artifacts `CorsixTH.js`, `CorsixTH.wasm`, `CorsixTH.data` somewhere under `build-wasm/` (exact subdir recorded in the report; Tasks 2/5/6 locate them with `find`). Report file with sections `## Build attempt`, `## Boot attempt`, `## Verdict`.
+- Produces: `build/build.sh [clean]` → on success, artifacts `corsix-th.js`, `corsix-th.wasm`, `corsix-th.data` somewhere under `build-wasm/` (exact subdir recorded in the report; Tasks 2/5/6 locate them with `find`). Report file with sections `## Build attempt`, `## Boot attempt`, `## Verdict`.
 
 - [ ] **Step 1: Write the build script**
 
@@ -72,7 +72,7 @@ docker run --rm -v "$ROOT":/src -w /src "$IMAGE" bash -c "
 "
 
 echo '--- artifacts:'
-find "$ROOT/$BUILD_DIR" \( -name 'CorsixTH.js' -o -name 'CorsixTH.wasm' -o -name 'CorsixTH.data' \) | sort
+find "$ROOT/$BUILD_DIR" \( -name 'corsix-th.js' -o -name 'corsix-th.wasm' -o -name 'corsix-th.data' \) | sort
 ```
 
 Save as `build/build.sh`, then: `chmod +x build/build.sh`
@@ -135,7 +135,7 @@ git commit -m "feat(m0): canonical Docker wasm build script + spike report (buil
 - Modify: `docs/superpowers/reports/2026-07-22-m0-spike-report.md` (Boot + Verdict sections)
 
 **Interfaces:**
-- Consumes: artifacts from Task 1 (`CorsixTH.js` is a MODULARIZE'd factory whose global is `Module`; `-sEXPORTED_RUNTIME_METHODS=callMain,...`; `-sENVIRONMENT=web`).
+- Consumes: artifacts from Task 1 (`corsix-th.js` is a MODULARIZE'd factory whose global is `Module`; `-sEXPORTED_RUNTIME_METHODS=callMain,...`; `-sENVIRONMENT=web`).
 - Produces: `build/serve.sh` → serves the artifact dir + harness at `http://localhost:8123`. Completed M0 report with a Verdict of A, B, or C (matrix below) — the gate for all M1+ work.
 
 **Precondition:** Task 1 built successfully. If not, skip Steps 1–4, write `## Boot attempt: not reached (build failed)`, and go to Step 5's verdict matrix.
@@ -155,7 +155,7 @@ git commit -m "feat(m0): canonical Docker wasm build script + spike report (buil
 </head>
 <body>
   <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
-  <script src="CorsixTH.js"></script>
+  <script src="corsix-th.js"></script>
   <script>
     Module({
       canvas: document.getElementById('canvas'),
@@ -179,8 +179,8 @@ Save as `web/dev/index.html`.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-JS="$(find "$ROOT/build-wasm" -name 'CorsixTH.js' | head -1)"
-[[ -n "$JS" ]] || { echo "No CorsixTH.js under build-wasm/ — run build/build.sh first"; exit 1; }
+JS="$(find "$ROOT/build-wasm" -name 'corsix-th.js' | head -1)"
+[[ -n "$JS" ]] || { echo "No corsix-th.js under build-wasm/ — run build/build.sh first"; exit 1; }
 ART_DIR="$(dirname "$JS")"
 
 cp "$ROOT/web/dev/index.html" "$ART_DIR/"
@@ -194,7 +194,7 @@ Save as `build/serve.sh`, then: `chmod +x build/serve.sh`
 
 Run: `build/serve.sh` (background it), open `http://localhost:8123` in Chrome with DevTools console open (browser-automation tooling if available, manual otherwise).
 
-Capture: (1) full console output, (2) a screenshot of the tab, (3) network tab — did `CorsixTH.wasm` and `CorsixTH.data` load (HTTP 200, sizes)?
+Capture: (1) full console output, (2) a screenshot of the tab, (3) network tab — did `corsix-th.wasm` and `corsix-th.data` load (HTTP 200, sizes)?
 
 - [ ] **Step 4: Classify what happened**
 
@@ -202,7 +202,7 @@ Capture: (1) full console output, (2) a screenshot of the tab, (3) network tab �
 |---|---|
 | Engine reaches TH-data-missing handling: directory-browser UI, or a Lua error / console message about missing `theme_hospital_install` / data files | **BOOT SUCCESS for M0** — engine runs; only assets are absent (expected: we supply none) |
 | Module instantiates, preloads load, then JS exception / abort before any engine output | Partial — record the exact exception + stack |
-| `CorsixTH.js`/`.wasm`/`.data` fail to load, or `Module` is undefined | Harness/artifact mismatch — check artifact names, `EXPORT_NAME`, paths; one retry after fixing the harness, then record |
+| `corsix-th.js`/`.wasm`/`.data` fail to load, or `Module` is undefined | Harness/artifact mismatch — check artifact names, `EXPORT_NAME`, paths; one retry after fixing the harness, then record |
 
 - [ ] **Step 5: Complete the report — Boot section + Verdict**
 
@@ -323,7 +323,7 @@ git commit -m "fix(wasm): load music synchronously under Emscripten (zero-thread
 - Create: `build/check-artifacts.sh`
 
 **Interfaces:**
-- Consumes: `CorsixTH.js` + `CorsixTH.data` under `build-wasm/` (Task 1's build).
+- Consumes: `corsix-th.js` + `corsix-th.data` under `build-wasm/` (Task 1's build).
 - Produces: `build/check-artifacts.sh` → exit 0 = "PASS: engine-only artifacts", nonzero with a `FAIL:` line otherwise. Task 6's CI calls it verbatim.
 
 - [ ] **Step 1: Write the check script**
@@ -335,8 +335,8 @@ git commit -m "fix(wasm): load music synchronously under Emscripten (zero-thread
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-JS="$(find "$ROOT/build-wasm" -name 'CorsixTH.js' | head -1)"
-DATA="$(find "$ROOT/build-wasm" -name 'CorsixTH.data' | head -1)"
+JS="$(find "$ROOT/build-wasm" -name 'corsix-th.js' | head -1)"
+DATA="$(find "$ROOT/build-wasm" -name 'corsix-th.data' | head -1)"
 [[ -n "$JS" && -n "$DATA" ]] || { echo "FAIL: artifacts not found under build-wasm/ — build first"; exit 1; }
 
 python3 - "$JS" "$DATA" <<'PY'
@@ -355,7 +355,7 @@ if hits:
 
 # Threaded runtime marker: 'PThread' object is only emitted by -pthread builds
 if b'PThread' in blob:
-    print("FAIL: threaded (pthread) runtime detected in CorsixTH.js")
+    print("FAIL: threaded (pthread) runtime detected in corsix-th.js")
     sys.exit(1)
 
 # Sanity: prove the scan sees real content — engine's own preload must be present
@@ -426,9 +426,9 @@ jobs:
         with:
           name: corsixth-wasm
           path: |
-            build-wasm/**/CorsixTH.js
-            build-wasm/**/CorsixTH.wasm
-            build-wasm/**/CorsixTH.data
+            build-wasm/**/corsix-th.js
+            build-wasm/**/corsix-th.wasm
+            build-wasm/**/corsix-th.data
 ```
 
 Save as `.github/workflows/wasm.yml`. Substitute the container tag with Task 3's actual pin.
@@ -453,4 +453,4 @@ Diff the environments, not the code: container tag mismatch with `build/build.sh
 
 - Spec coverage: M0 spike (Tasks 1–2 = spec §Verification M0 gate), reproducible Docker build (Task 3 = M1 exit criterion), sync-music/zero-thread patch (Task 4 = spec §V1 build config), engine-only artifact guarantee (Task 5 = spec §Deployment + global constraint), CI (Task 6 = spec §Deployment). Deliberately NOT in this plan (deferred to the M2/M3 plan, pending M0 evidence): web shell onboarding, IDBFS syncfs error propagation, archive.org CORS spike, memory-budget work, E2E smoke test, ISO bypass.
 - The `-sEXPORT_ALL`, `-sEXIT_RUNTIME`, `-lwebsocket.js` flags inherited from the base branch are suspicious (bloat / odd-for-a-game / apparently unused) but are NOT touched in M0/M1 — churn on unproven ground is how spikes die. Logged for the M2 plan.
-- Type/name consistency: artifact names (`CorsixTH.js/.wasm/.data`), port 8123, `build-wasm/`, and the emsdk pin appear in Tasks 1/2/3/5/6 — all consistent; Task 3 and Task 6 both carry the "keep in lockstep" note.
+- Type/name consistency: artifact names (`corsix-th.js/.wasm/.data` — corrected from `CorsixTH.*` after Task 1.5 discovered the `OUTPUT_NAME corsix-th` target property), port 8123, `build-wasm/`, and the emsdk pin appear in Tasks 1/2/3/5/6 — all consistent; Task 3 and Task 6 both carry the "keep in lockstep" note.
