@@ -3,7 +3,7 @@
 # Usage: build/build.sh [clean]
 set -euo pipefail
 
-IMAGE="${EMSDK_IMAGE:-emscripten/emsdk:latest}" # winning combo, Task 1.5; pinned in M1 Task 3
+IMAGE="${EMSDK_IMAGE:-emscripten/emsdk:6.0.3}" # winning combo, Task 1.5; pinned exact version, Task 3
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="build-wasm"
 
