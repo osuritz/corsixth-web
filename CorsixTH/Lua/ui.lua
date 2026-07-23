@@ -1128,6 +1128,7 @@ function UI:makeScreenshot()
 
   -- Take screenshot
   local res, err = self.app.video:takeScreenshot(filename)
+  TH.SyncEmscriptenFS()
   if not res then
     print("Screenshot failed: " .. err)
   else
