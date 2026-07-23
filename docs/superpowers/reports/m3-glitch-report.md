@@ -314,13 +314,46 @@ default shared profile.
 | 8 | 8 min | 0 | 46.2MB | |
 | 9 | 8 min | 0 | 49.8MB | in-game date reached 1 Jan (year 2000); year-end Charts screen reconfirmed "Most Visitors: 0" for every entity — Finding 2 (no GP's Office ⇒ no patients) holds at this longer duration too |
 
-All 4 long (8-minute) chunks plus the smoke chunk completed cleanly — no crash,
-no engine error, no visual corruption in any of the 4×16 = 64 periodic
-screenshots inspected (spot-checked in full; two representative frames pulled
-for this addendum, `m3-glitch-124.png`-equivalent and the chunk-9 Charts
-screen — not committed individually per the existing "keep the committed set
-small" convention, since they show the same flat/uneventful state as the
-already-committed `m3-glitch-03`/`m3-glitch-04` frames).
+All 4 long (8-minute) chunks plus the smoke chunk ran to completion with no
+visual corruption in any of the 4×16 = 64 periodic screenshots inspected
+(spot-checked in full; two representative frames pulled for this addendum,
+`m3-glitch-124.png`-equivalent and the chunk-9 Charts screen — not committed
+individually per the existing "keep the committed set small" convention,
+since they show the same flat/uneventful state as the already-committed
+`m3-glitch-03`/`m3-glitch-04` frames).
+
+**Correction — this session was NOT fully error-free.** An earlier draft of
+this addendum claimed "no crash, no engine error" here; the committed data
+does not support that. `m3-glitch-heap-events.json`'s `consoleTail` (the last
+30 console lines recorded before each chunk's browser session closed) shows
+a `pageerror` in 3 of the 4 long chunks — chunk 6 (`null function`), chunk 7
+(`function signature mismatch`), and chunk 9 (`null function` followed by
+`memory access out of bounds` ×2); chunk 8 alone shows none. This is the
+SAME error vocabulary as the room-drag crash reproduced earlier in this
+report (`RuntimeError: null function`, `RuntimeError: memory access out of
+bounds`), not a distinct, unrelated failure mode.
+
+In every occurrence, the `pageerror` is literally the last line captured
+before that chunk's harness (`web/e2e-glitch.mjs`) runs its end-of-chunk
+sequence — a best-effort quicksave (itself an Asyncify-driven filesystem
+sync) immediately followed by `browser.close()`. That timing is consistent
+with a teardown-artifact hypothesis: the automated shutdown drives the
+engine through the same Asyncify unwind/rewind machinery implicated in the
+room-drag crash, and closing the browser while that is in flight could
+plausibly surface a spurious `pageerror` reflecting the teardown itself
+rather than an in-game defect.
+
+That hypothesis does not make these errors safe to dismiss, though. This is
+the SAME crash family recurring in 3 of 4 independent chunks under
+**passive**, fast-forwarded Reception Desk + Receptionist play — zero active
+room-construction UI manipulation — the exact condition this addendum
+otherwise reports as clean. A crash family reappearing even in passive
+sessions, at a 3-of-4 rate too high to dismiss as noise, argues the
+underlying defect is not confined to active room-drag stress. Whether the
+proximate trigger is the harness's own teardown sequence or something
+reachable from ordinary accelerated simulation, either reading strengthens —
+not weakens — the crash watch-item below; "no crash, no engine error" was
+the wrong takeaway from this data and is retracted here.
 
 Across all of today's chunks, `usedJSHeapSize` again stayed flat (~39-50MB,
 consistent with every prior chunk in this file, including chunk 4's earlier
@@ -339,17 +372,30 @@ finding (Finding 1) is unchanged and now backed by substantially more data.
   (not just requested as future scope), and even with a session length roughly
   double the original, no visual sprite corruption was observed and no
   heap-growth event fired outside the self-test.
-- **New, separate watch-item (crash, not sprite corruption):** a real, one-time,
-  uncaught Lua/WASM crash (full freeze, three distinct runtime-error strings) was
-  observed during **active room-construction UI manipulation** (not idle/fast-
-  forwarded simulation), and was not reproducible in 3 follow-up attempts. This
-  is a different failure mode than the sponsor's reported sprite garbling, but is
-  a genuine engine defect reachable from mainline (if UI-automation-stress-level)
-  interaction, and is worth a dedicated follow-up task with real native-code
-  debugging (`CorsixTH/Src/th_lua.cpp`'s `l_map_updateblueprint`, and whatever
-  Lua callback the Asyncify `doRewind` stack trace was resuming into) rather than
-  further black-box UI automation, which has now been pushed about as far as it
-  usefully can be without that access.
+- **New, separate watch-item (crash, not sprite corruption) — now STRENGTHENED
+  by the long-session data above, not just a single active-manipulation
+  incident:** a real, uncaught Lua/WASM crash (full freeze, three distinct
+  runtime-error strings: `null function`, `memory access out of bounds`,
+  `table index is out of bounds`) was first observed during **active
+  room-construction UI manipulation** (not idle/fast-forwarded simulation),
+  and was not reproducible in 3 immediate follow-up attempts of that same
+  interaction. The SAME error vocabulary (`null function`,
+  `memory access out of bounds`, plus `function signature mismatch`) then
+  recurred as the final `consoleTail` entry in 3 of the 4 long **passive**
+  chunks in the table above — sessions with zero room-construction UI
+  manipulation at all. A teardown-artifact explanation is plausible for the
+  passive-session occurrences (see the correction above) but does not fully
+  explain away a 3-of-4 recurrence rate of the identical error family across
+  two very different interaction modes (active drag-stress and idle
+  fast-forward). Taken together this is a genuine engine defect reachable
+  from mainline interaction (not confined to UI-automation-stress-level
+  input), and is worth a dedicated follow-up task with real native-code
+  debugging (`CorsixTH/Src/th_lua.cpp`'s `l_map_updateblueprint`, whatever Lua
+  callback the Asyncify `doRewind` stack trace was resuming into, and — for
+  the passive-session occurrences — `web/e2e-glitch.mjs`'s end-of-chunk
+  quicksave/`browser.close()` sequence) rather than further black-box UI
+  automation, which has now been pushed about as far as it usefully can be
+  without that access.
 - **What would move the sprite-corruption question forward:** unchanged from the
   original report — either a follow-up task with the native-code access needed to
   fix/re-attempt the GP's Office Confirm gate (so an actually-treating-patients
