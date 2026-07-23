@@ -52,8 +52,8 @@ import { transcodeXmiToMid, renderMidiToPcm, renderXmiToAudio } from 'xmidi-rend
 const mid = transcodeXmiToMid(xmi);
 if (!mid) throw new Error('not a valid XMI (no EVNT chunk, or corrupt event stream)');
 
-// Stage 2: MIDI + SoundFont -> interleaved stereo Float32 PCM.
-const { pcm, channels } = await renderMidiToPcm(mid, soundfont, 22050);
+// Stage 2: MIDI + SoundFont -> planar stereo Float32 PCM ({ left, right }).
+const { left, right } = await renderMidiToPcm(mid, soundfont, 22050);
 
 // Stage 3 (the one-liner above does stages 1-3 + encoding together):
 const result = await renderXmiToAudio(xmi, soundfont, {
@@ -69,11 +69,11 @@ const result = await renderXmiToAudio(xmi, soundfont, {
   Parse XMIDI event bytes and emit a standard Format-0 MIDI file. Returns `null` if `xmi` has
   no `EVNT` chunk or its event stream is truncated/corrupt.
 
-- **`renderMidiToPcm(mid: Uint8Array, soundfont: Uint8Array, sampleRate: number): Promise<{ pcm: Float32Array; channels: number }>`**
-  Render a standard MIDI file to interleaved Float32 PCM using a GM SoundFont (SF2/SF3), via
-  [spessasynth_core](https://github.com/spessasus/spessasynth_core). `channels` is currently
-  always `2`. The render spans the full song length plus a 1-second tail so the last notes'
-  release/reverb aren't cut off.
+- **`renderMidiToPcm(mid: Uint8Array, soundfont: Uint8Array, sampleRate: number): Promise<{ left: Float32Array; right: Float32Array }>`**
+  Render a standard MIDI file to planar (per-channel) stereo Float32 PCM using a GM SoundFont
+  (SF2/SF3), via [spessasynth_core](https://github.com/spessasus/spessasynth_core). `left` and
+  `right` are always the same length. The render spans the full song length plus a 1-second
+  tail so the last notes' release/reverb aren't cut off.
 
 - **`renderXmiToAudio(xmi: Uint8Array, soundfont: Uint8Array, opts?: RenderXmiToAudioOptions): Promise<{ bytes: Uint8Array; format: 'ogg' | 'wav' }>`**
   The end-to-end pipeline (stages 1-3 above combined). `opts.format` defaults to `'ogg'`; if

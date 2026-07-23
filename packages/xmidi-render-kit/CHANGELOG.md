@@ -14,3 +14,9 @@ sponsor sign-off.
   `web/src/`: `transcodeXmiToMid`, `renderMidiToPcm`, `encodeWav`, and a new
   `renderXmiToAudio` convenience wrapper combining all three stages with OGG-primary /
   WAV-fallback encoding.
+- Synced `renderMidiToPcm`'s output shape with upstream `web/src/synth.ts`, which had
+  diverged since this package's extraction: `PcmRenderResult` is now planar
+  (`{ left, right }`, one `Float32Array` per channel) instead of interleaved
+  (`{ pcm, channels }`). `renderXmiToAudio`'s `encodeOgg` now hands the encoder planar
+  channels directly (its native shape); the WAV fallback path interleaves once, locally,
+  right before `encodeWav` (whose own interleaved-PCM contract is unchanged).

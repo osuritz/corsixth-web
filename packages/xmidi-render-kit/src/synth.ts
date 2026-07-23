@@ -1,4 +1,4 @@
-// GM synth glue: offline-render standard MIDI bytes to interleaved Float32 PCM using a
+// GM synth glue: offline-render standard MIDI bytes to planar (per-channel) Float32 PCM using a
 // caller-supplied SoundFont (SF2/SF3). Pure offline rendering — never realtime, never an
 // AudioContext — so it works identically in Node, browsers, and Workers.
 //
@@ -13,10 +13,15 @@ import {
   SpessaSynthSequencer,
 } from 'spessasynth_core';
 
-/** Interleaved stereo (or mono) Float32 PCM, plus the channel count needed to de-interleave it. */
+// Returns PLANAR stereo PCM ({ left, right }, one Float32Array per channel) rather than
+// interleaved — this is the layout wasm-media-encoders' OGG encoder wants natively (see
+// render.ts's encodeOgg). Only the WAV fallback path needs interleaved samples; render.ts does
+// that conversion once, locally, right before handing bytes to encodeWav (encodeWav's own
+// interleaved-PCM contract is unchanged — see wav.ts).
+/** Planar (per-channel) stereo Float32 PCM: `left` and `right`, always the same length. */
 export interface PcmRenderResult {
-  pcm: Float32Array;
-  channels: number;
+  left: Float32Array;
+  right: Float32Array;
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -29,22 +34,21 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 }
 
 /**
- * Render a standard MIDI file to interleaved Float32 PCM using a General MIDI SoundFont.
+ * Render a standard MIDI file to planar (per-channel) Float32 PCM using a General MIDI
+ * SoundFont.
  *
  * @param mid Standard MIDI file bytes (e.g. from {@link transcodeXmiToMid}).
  * @param soundfont SF2 or SF3 SoundFont bytes. Not bundled by this package — see README.md
  *   for where to get a freely-licensed one (FluidR3) and its license terms.
  * @param sampleRate Output sample rate in Hz.
- * @returns Interleaved stereo Float32 PCM (`channels` is always 2 today) spanning the full
- *   song length plus a 1s tail (to let the last notes' release/reverb ring out).
+ * @returns Planar stereo Float32 PCM — `left` and `right`, each spanning the full song length
+ *   plus a 1s tail (to let the last notes' release/reverb ring out).
  */
 export async function renderMidiToPcm(
   mid: Uint8Array,
   soundfont: Uint8Array,
   sampleRate: number,
 ): Promise<PcmRenderResult> {
-  const channels = 2;
-
   const midi = BasicMIDI.fromArrayBuffer(toArrayBuffer(mid));
   const soundBank = SoundBankLoader.fromArrayBuffer(toArrayBuffer(soundfont));
 
@@ -70,10 +74,5 @@ export async function renderMidiToPcm(
     filled += n;
   }
 
-  const pcm = new Float32Array(total * channels);
-  for (let i = 0; i < total; i++) {
-    pcm[i * 2] = left[i];
-    pcm[i * 2 + 1] = right[i];
-  }
-  return { pcm, channels };
+  return { left, right };
 }

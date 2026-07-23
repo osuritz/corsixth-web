@@ -47,31 +47,30 @@ export interface RenderXmiToAudioResult {
   format: AudioFormat;
 }
 
-// De-interleave synth.ts's interleaved Float32 PCM into one Float32Array per channel — the
-// shape wasm-media-encoders' encode() expects.
-function deinterleave(pcm: Float32Array, channels: number): Float32Array[] {
-  const frames = Math.floor(pcm.length / channels);
-  const out: Float32Array[] = [];
-  for (let c = 0; c < channels; c++) out.push(new Float32Array(frames));
-  for (let i = 0; i < frames; i++) {
-    for (let c = 0; c < channels; c++) out[c][i] = pcm[i * channels + c];
+// Interleave synth.ts's planar { left, right } PCM into the single Float32Array encodeWav's
+// contract requires. Only the WAV fallback path needs this — encodeOgg below hands the
+// encoder planar channels directly, its native shape.
+function interleave(left: Float32Array, right: Float32Array): Float32Array {
+  const out = new Float32Array(left.length * 2);
+  for (let i = 0; i < left.length; i++) {
+    out[i * 2] = left[i];
+    out[i * 2 + 1] = right[i];
   }
   return out;
 }
 
 async function encodeOgg(
-  pcm: Float32Array,
+  left: Float32Array,
+  right: Float32Array,
   sampleRate: number,
-  channels: number,
   vbrQuality: number,
 ): Promise<Uint8Array> {
   const encoder = await createOggEncoder();
-  encoder.configure({ sampleRate, channels: channels as 1 | 2, vbrQuality });
-  const chans = deinterleave(pcm, channels);
+  encoder.configure({ sampleRate, channels: 2, vbrQuality });
   const chunks: Uint8Array[] = [];
   // encode()'s returned buffer is owned by the encoder and must be copied (see the
   // wasm-media-encoders README) — .slice() does that.
-  const enc = encoder.encode(chans);
+  const enc = encoder.encode([left, right]);
   if (enc.length) chunks.push(enc.slice());
   const tail = encoder.finalize();
   if (tail.length) chunks.push(tail.slice());
@@ -107,23 +106,24 @@ export async function renderXmiToAudio(
   const sampleRate = opts.sampleRate ?? DEFAULT_SAMPLE_RATE;
   const vbrQuality = opts.vbrQuality ?? DEFAULT_VBR_QUALITY;
   const requestedFormat = opts.format ?? 'ogg';
+  const channels = 2; // renderMidiToPcm's planar output is always stereo today.
 
   const mid = transcodeXmiToMid(xmi);
   if (!mid) {
     throw new Error('renderXmiToAudio: XMI transcode failed (no EVNT chunk, or corrupt/truncated event stream)');
   }
 
-  const { pcm, channels } = await renderMidiToPcm(mid, soundfont, sampleRate);
+  const { left, right } = await renderMidiToPcm(mid, soundfont, sampleRate);
 
   if (requestedFormat === 'wav') {
-    return { bytes: encodeWav(pcm, sampleRate, channels), format: 'wav' };
+    return { bytes: encodeWav(interleave(left, right), sampleRate, channels), format: 'wav' };
   }
   try {
-    const bytes = await encodeOgg(pcm, sampleRate, channels, vbrQuality);
+    const bytes = await encodeOgg(left, right, sampleRate, vbrQuality);
     if (bytes.length === 0) throw new Error('OGG encoder produced zero bytes');
     return { bytes, format: 'ogg' };
   } catch (e) {
     console.warn('[xmidi-render-kit] OGG encode failed, falling back to WAV:', e);
-    return { bytes: encodeWav(pcm, sampleRate, channels), format: 'wav' };
+    return { bytes: encodeWav(interleave(left, right), sampleRate, channels), format: 'wav' };
   }
 }
