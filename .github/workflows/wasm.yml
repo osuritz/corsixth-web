@@ -46,3 +46,34 @@ jobs:
       - name: Headless boot smoke test
         run: cd web && node boot-smoke.mjs
         env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
+
+  deploy-pages:
+    if: github.event_name == 'push'
+    needs: [build, boot-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: corsixth-wasm
+          path: build-wasm/
+      - name: Artifact hygiene gate (defense in depth before publish)
+        run: build/check-artifacts.sh
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build shell
+        run: cd web && npm ci && npm run build
+        env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
+      - name: No root-absolute URLs (Pages subpath safety)
+        run: '! grep -nE "(src|href)=\"/" web/dist/index.html'
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: web/dist }
+      - id: deployment
+        uses: actions/deploy-pages@v4
