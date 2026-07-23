@@ -220,13 +220,24 @@ int l_fetch_latest_version_info(lua_State* L) {
 }
 
 #if __EMSCRIPTEN__
-EM_ASYNC_JS(void, do_save_idbfs, (), {
-    await new Promise((resolve, reject) => FS.syncfs(err => err ? reject(err) : resolve()))
+// Returns 0 on success, 1 on failure. Failures are surfaced to the embedding
+// page via Module.onSaveSyncError so the user learns their save did not
+// persist (e.g. IndexedDB quota) instead of losing it silently on reload.
+EM_ASYNC_JS(int, do_save_idbfs, (), {
+  try {
+    await new Promise((resolve, reject) =>
+        FS.syncfs((err) => (err ? reject(err) : resolve())));
+    return 0;
+  } catch (e) {
+    console.error('[corsixth] FS.syncfs failed:', e);
+    Module?.onSaveSyncError?.(String(e));
+    return 1;
+  }
 });
 
 int l_sync_emscripten_fs(lua_State* L) {
-  do_save_idbfs();
-  return 0;
+  lua_pushboolean(L, do_save_idbfs() == 0);
+  return 1;
 }
 
 int l_module_game_ready(lua_State* L) {
@@ -236,7 +247,8 @@ int l_module_game_ready(lua_State* L) {
 #else
 
 int l_sync_emscripten_fs(lua_State* L) {
-  return 0;
+  lua_pushboolean(L, true);
+  return 1;
 }
 int l_module_game_ready(lua_State* L) {
   return 0;
