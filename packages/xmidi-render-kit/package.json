@@ -1,0 +1,54 @@
+{
+  "name": "xmidi-render-kit",
+  "version": "0.1.0",
+  "description": "Game-agnostic XMIDI (.xmi) -> MIDI -> PCM -> OGG/WAV render toolkit. Convert Miles Sound System XMIDI music to standard MIDI, render it with a GM SoundFont, and encode the result — in Node, browsers, or Workers.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node scripts/fetch-soundfont.mjs && node build.mjs --tests && node --test 'dist-test/**/*.js'",
+    "fetch-assets": "node scripts/fetch-soundfont.mjs"
+  },
+  "dependencies": {
+    "spessasynth_core": "4.3.15",
+    "wasm-media-encoders": "0.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "esbuild": "0.25.0",
+    "typescript": "5.7.2"
+  },
+  "keywords": [
+    "xmi",
+    "xmidi",
+    "midi",
+    "miles-sound-system",
+    "general-midi",
+    "soundfont",
+    "ogg",
+    "vorbis",
+    "wav",
+    "audio",
+    "corsixth",
+    "theme-hospital"
+  ]
+}
