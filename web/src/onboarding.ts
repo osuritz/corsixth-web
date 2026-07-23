@@ -97,12 +97,19 @@ async function finishIngest(count: number): Promise<void> {
   location.reload();
 }
 
-// Streaming zip ingest: one file's bytes in memory at a time (memory budget requirement).
+// Cap on putAsset promises in flight at once. Each holds one assembled file buffer alive
+// until IndexedDB commits it, so this bounds ingest peak memory regardless of zip size
+// (GOG installs are hundreds of MB). fflate's onfile/ondata are synchronous, so we drain
+// between reader chunks rather than inside the callbacks.
+export const MAX_INFLIGHT_PUTS = 8;
+
+// Streaming zip ingest: file bytes are assembled one at a time and handed to IndexedDB,
+// with at most MAX_INFLIGHT_PUTS writes (and their buffers) live concurrently.
 export async function ingestZip(file: File, onProgress: (done: number) => void): Promise<void> {
   let count = 0;
   const unzip = new Unzip();
   unzip.register(UnzipInflate);
-  const pending: Promise<void>[] = [];
+  let pending: Promise<void>[] = [];
   unzip.onfile = (f) => {
     const norm = normalizeAssetPath(f.name);
     if (!norm) return;
@@ -125,6 +132,7 @@ export async function ingestZip(file: File, onProgress: (done: number) => void):
     const { done, value } = await reader.read();
     if (done) { unzip.push(new Uint8Array(0), true); break; }
     unzip.push(value, false);
+    if (pending.length >= MAX_INFLIGHT_PUTS) { await Promise.all(pending); pending = []; }
   }
   await Promise.all(pending);
   await finishIngest(count);

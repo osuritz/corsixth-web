@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { normalizeAssetPath } from './onboarding';
+import { normalizeAssetPath, MAX_INFLIGHT_PUTS } from './onboarding';
 import { validateAssetPaths } from './idb';
 
 test('normalizeAssetPath strips wrapper dirs and uppercases', () => {
@@ -18,4 +18,13 @@ test('validateAssetPaths requires the three engine-check files', () => {
   const r = validateAssetPaths(['DATA/VBLK-0.TAB']);
   assert.equal(r.ok, false);
   assert.deepEqual(r.missing, ['LEVELS/LEVEL.L1', 'QDATA/SPOINTER.DAT']);
+});
+// M3 Task 5: ingestZip must bound concurrently in-flight putAsset promises (each holds
+// one assembled file buffer live until IndexedDB commits it) rather than accumulating
+// all of them for a final Promise.all — that would keep every file's bytes in memory
+// at once for a GOG-scale (hundreds-of-MB) install. This unit test pins the bound's
+// existence/shape; the in-browser measurement harness (measure-ingest-memory.mjs)
+// proves the resulting memory effect at full zip size.
+test('MAX_INFLIGHT_PUTS is a small, finite bound', () => {
+  assert.ok(Number.isInteger(MAX_INFLIGHT_PUTS) && MAX_INFLIGHT_PUTS > 0 && MAX_INFLIGHT_PUTS <= 64);
 });
