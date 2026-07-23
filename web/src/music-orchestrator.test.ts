@@ -66,6 +66,10 @@ function makeFakeDeps(overrides: Partial<MusicOrchestratorDeps> & {
     setRenderStatus: async (p, s) => { statuses.set(p, s); },
     createClient: () => null,
     createFallbackClient: async () => { throw new Error('no fallback client configured for this test'); },
+    // Small but not tiny — the timeout test below overrides this to something tiny
+    // itself; everything else should never come close to it and this keeps a runaway
+    // regression from actually hanging the suite for the real 120s production default.
+    renderTimeoutMs: 2000,
     musicWrites,
     statuses,
   };
@@ -166,6 +170,75 @@ test('resumeMusicRendering: Worker construction failing synchronously goes strai
   const notices: MusicNoticeState[] = [];
   await resumeMusicRendering((n) => notices.push(n), deps);
   assert.equal(fallbackCalls, 1);
+  assert.deepEqual(notices.at(-1), { kind: 'ready-reload' });
+});
+
+test('resumeMusicRendering: worker dead before the first postMessage (async init failure) falls back and completes', async () => {
+  // Simulates createWorkerClient's real `dead` guard firing from an async `onerror`
+  // that lands BEFORE runPass ever calls renderXmiToAudio for the first track (the
+  // lane-review finding: `pending` is empty at that point, so the old code had nothing
+  // to reject and the eventual postMessage went to a dead worker that never replies).
+  // At this fake-client abstraction level that's indistinguishable from "every call
+  // immediately rejects with WorkerFatalError" — the real `dead` flag itself lives in
+  // createWorkerClient and needs a real Worker to exercise directly.
+  let terminated = false;
+  const deadWorkerClient = fakeClient(() => Promise.reject(new WorkerFatalError('music worker is dead (failed to initialize or crashed)')));
+  deadWorkerClient.terminate = () => { terminated = true; };
+  let fallbackCalls = 0;
+  const deps = makeFakeDeps({
+    assets: { 'SOUND/MIDI/A.XMI': new Uint8Array([1]), 'SOUND/MIDI/B.XMI': new Uint8Array([2]) },
+    createClient: () => deadWorkerClient,
+    createFallbackClient: async () => fakeClient(async (xmi) => {
+      fallbackCalls++;
+      return { bytes: new Uint8Array([...xmi, 9]), ext: 'OGG' };
+    }),
+  });
+  const notices: MusicNoticeState[] = [];
+  await resumeMusicRendering((n) => notices.push(n), deps);
+
+  assert.ok(terminated, 'the dead worker client must still be terminated once detected');
+  assert.equal(fallbackCalls, 2, 'both tracks must complete via the fallback, including the very first one');
+  assert.equal(deps.statuses.get('SOUND/MIDI/A.XMI')?.state, 'done');
+  assert.equal(deps.statuses.get('SOUND/MIDI/B.XMI')?.state, 'done');
+  assert.deepEqual(notices.at(-1), { kind: 'ready-reload' });
+});
+
+test('resumeMusicRendering: fallback construction failing mid-batch fails the rest visibly with retry (never reuses the dead client)', async () => {
+  let workerCalls = 0;
+  const workerClient = fakeClient(async () => { workerCalls++; throw new WorkerFatalError('worker crashed'); });
+  const deps = makeFakeDeps({
+    assets: { 'SOUND/MIDI/A.XMI': new Uint8Array([1]), 'SOUND/MIDI/B.XMI': new Uint8Array([2]) },
+    createClient: () => workerClient,
+    createFallbackClient: async () => { throw new Error('soundfont fetch failed'); },
+  });
+  const notices: MusicNoticeState[] = [];
+  await resumeMusicRendering((n) => notices.push(n), deps);
+
+  assert.equal(workerCalls, 1, 'only the first track should ever hit the (now known-dead) worker client');
+  assert.equal(deps.statuses.get('SOUND/MIDI/A.XMI')?.state, 'error');
+  assert.equal(deps.statuses.get('SOUND/MIDI/B.XMI')?.state, 'error');
+  assert.match(deps.statuses.get('SOUND/MIDI/B.XMI')?.error ?? '', /soundfont fetch failed/,
+    'the second track must fail via the dead-client stub carrying the fallback\'s own error, not a hang');
+  assert.deepEqual(notices.at(-1), { kind: 'failed', failedCount: 2 });
+});
+
+test('resumeMusicRendering: a render that never settles times out and falls back', async () => {
+  const hangingClient = fakeClient(() => new Promise<RenderResult>(() => { /* never settles */ }));
+  let fallbackCalls = 0;
+  const deps = makeFakeDeps({
+    assets: { 'SOUND/MIDI/A.XMI': new Uint8Array([1]) },
+    createClient: () => hangingClient,
+    createFallbackClient: async () => fakeClient(async (xmi) => {
+      fallbackCalls++;
+      return { bytes: new Uint8Array([...xmi, 9]), ext: 'WAV' };
+    }),
+    renderTimeoutMs: 15, // tiny — this test's whole point is to actually wait it out
+  });
+  const notices: MusicNoticeState[] = [];
+  await resumeMusicRendering((n) => notices.push(n), deps);
+
+  assert.equal(fallbackCalls, 1);
+  assert.equal(deps.statuses.get('SOUND/MIDI/A.XMI')?.state, 'done');
   assert.deepEqual(notices.at(-1), { kind: 'ready-reload' });
 });
 

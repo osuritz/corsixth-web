@@ -78,6 +78,18 @@ function outputName(xmiPath: string, ext: 'OGG' | 'WAV'): string {
 // throwing) if Worker construction itself fails synchronously — the caller falls back
 // to the same-thread client for the whole batch in that case, per the task's explicit
 // "keep a same-thread fallback if Worker construction fails".
+//
+// AMENDED (lane review finding): Worker construction can also fail ASYNCHRONOUSLY —
+// the script 404s, throws at top level, etc. — surfaced only via `onerror`, sometime
+// after construction. runPass does IDB work (setRenderStatus, getAsset) BEFORE ever
+// calling renderXmiToAudio for the first track; if `onerror` lands in that window,
+// `pending` is still empty, so the old code's onerror handler had nothing to reject —
+// the eventual postMessage would go to a dead worker whose render promise never
+// settles, hanging the whole pass forever with no fallback ever engaging. Fixed with an
+// explicit `dead` flag: set by onerror (rejecting whatever IS pending at that moment)
+// and by terminate(); once dead, renderXmiToAudio rejects IMMEDIATELY with
+// WorkerFatalError instead of posting into the void, so no registration — early or
+// late — can ever hang.
 export function createWorkerClient(): RenderClient | null {
   let worker: Worker;
   try {
@@ -89,10 +101,15 @@ export function createWorkerClient(): RenderClient | null {
   type Resp = { type: 'result'; id: string; ok: true; bytes: Uint8Array; ext: 'OGG' | 'WAV' } |
     { type: 'result'; id: string; ok: false; error: string };
   const pending = new Map<string, { resolve: (r: RenderResult) => void; reject: (e: unknown) => void }>();
-  worker.onerror = (ev) => {
-    const err = new WorkerFatalError(`music worker failed: ${ev.message || 'unknown error'}`);
+  let dead = false;
+  const markDead = (err: WorkerFatalError): void => {
+    if (dead) return;
+    dead = true;
     for (const p of pending.values()) p.reject(err);
     pending.clear();
+  };
+  worker.onerror = (ev) => {
+    markDead(new WorkerFatalError(`music worker failed: ${ev.message || 'unknown error'}`));
   };
   worker.onmessage = (ev: MessageEvent<Resp>) => {
     const msg = ev.data;
@@ -104,6 +121,7 @@ export function createWorkerClient(): RenderClient | null {
   };
   return {
     renderXmiToAudio(xmi: Uint8Array): Promise<RenderResult> {
+      if (dead) return Promise.reject(new WorkerFatalError('music worker is dead (failed to initialize or crashed)'));
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       return new Promise((resolve, reject) => {
         pending.set(id, { resolve, reject });
@@ -113,8 +131,40 @@ export function createWorkerClient(): RenderClient | null {
         worker.postMessage({ type: 'render', id, xmi });
       });
     },
-    terminate() { worker.terminate(); },
+    terminate() {
+      markDead(new WorkerFatalError('music worker terminated'));
+      worker.terminate();
+    },
   };
+}
+
+// A permanently-failing stub, swapped in when the same-thread fallback ITSELF fails to
+// come up mid-batch (see runPass's WorkerFatalError branch). Never reuse the terminated
+// worker client in that case — it would just reject immediately per the `dead` guard
+// above, wasting one doomed attempt per remaining track for no benefit. This stub fails
+// fast and visibly instead, so the rest of the batch is marked 'error' immediately and
+// the pass ends in 'failed' with a retry button.
+function deadClientStub(reason: unknown): RenderClient {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  return {
+    renderXmiToAudio: () => Promise.reject(err),
+    terminate() { /* nothing to tear down */ },
+  };
+}
+
+// Belt-and-braces: converts ANY unknown hang (a render promise that never settles, for
+// whatever reason) into the same handled WorkerFatalError -> fallback path, rather than
+// stalling resumeMusicRendering forever. 120s is generous — real renders take ~3s/track.
+export const RENDER_TIMEOUT_MS = 120_000;
+
+function renderWithTimeout(client: RenderClient, xmi: Uint8Array, ms: number): Promise<RenderResult> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new WorkerFatalError(`render timed out after ${ms}ms`)), ms);
+    client.renderXmiToAudio(xmi).then(
+      (r) => { clearTimeout(timer); resolve(r); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
 }
 
 type MainThreadRenderer = { renderXmiToAudio: (xmi: Uint8Array, sf: Uint8Array) => Promise<RenderResult> };
@@ -163,11 +213,13 @@ export interface MusicOrchestratorDeps {
   setRenderStatus: (p: string, s: MusicRenderStatus) => Promise<void>;
   createClient: () => RenderClient | null;
   createFallbackClient: () => Promise<RenderClient>;
+  // Overridable so tests can use a tiny value instead of waiting out RENDER_TIMEOUT_MS.
+  renderTimeoutMs: number;
 }
 
 const defaultDeps: MusicOrchestratorDeps = {
   listAssetPaths, getAsset, putAsset, listRenderStatuses, setRenderStatus,
-  createClient: createWorkerClient, createFallbackClient,
+  createClient: createWorkerClient, createFallbackClient, renderTimeoutMs: RENDER_TIMEOUT_MS,
 };
 
 let running = false;
@@ -220,14 +272,24 @@ async function runPass(onNotice: (state: MusicNoticeState) => void, deps: MusicO
       if (!xmi) throw new Error('asset missing from storage');
       let result: RenderResult;
       try {
-        result = await client.renderXmiToAudio(xmi);
+        result = await renderWithTimeout(client, xmi, deps.renderTimeoutMs);
       } catch (e) {
         if (e instanceof WorkerFatalError && !usingFallback) {
           console.warn('[music] worker unavailable mid-render, switching to same-thread fallback:', e);
           usingFallback = true;
           client.terminate();
-          client = await deps.createFallbackClient();
-          result = await client.renderXmiToAudio(xmi);
+          try {
+            client = await deps.createFallbackClient();
+          } catch (fallbackErr) {
+            // The fallback itself failed to come up (soundfont fetch failed,
+            // music-render.js script load failed, etc.) — never reuse the
+            // now-dead worker client for the rest of the batch (see deadClientStub's
+            // comment above). Every remaining track fails fast and visibly instead.
+            console.warn('[music] same-thread fallback also failed to start:', fallbackErr);
+            client = deadClientStub(fallbackErr);
+            throw fallbackErr;
+          }
+          result = await renderWithTimeout(client, xmi, deps.renderTimeoutMs);
         } else {
           throw e;
         }
