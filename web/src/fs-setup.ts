@@ -1,6 +1,7 @@
 // All Emscripten filesystem policy for the shell lives here.
 export const MOUNT_CONFIG = '/home/web_user/.config/CorsixTH';
 export const MOUNT_DATA = '/th-data';
+export const MOUNT_MUSIC = `${MOUNT_DATA}/MUSIC`;
 
 // Minimal structural types for the Emscripten surface we touch (FS/ENV exported in Task 2's flag delta).
 export interface EmFS {
@@ -44,6 +45,85 @@ export function ensureInstallPath(FS: EmFS): void {
   FS.writeFile(cfgFile, text);
 }
 
+// Mirrors CorsixTH/Lua/config_finder.lua's `config_defaults` table (this pinned engine
+// build) MINUS theme_hospital_install (already written above with our real path instead
+// of the Lua default).
+//
+// Why this exists — a real, empirically-confirmed bug this fix closes: config_finder.lua
+// rewrites config.txt from scratch whenever ANY of its ~48 tracked default keys is
+// missing from the file (its `needs_rewrite` check), and that rewrite emits
+// `audio_music = nil` as a hardcoded literal — audio_music is NOT one of the tracked
+// config_defaults keys, so it is never preserved across a rewrite (see
+// config_finder.lua:481, a static string template, not built from config_values). Our
+// preRun writes config.txt from scratch on a fresh IDBFS profile (only 1-2 lines), so
+// without this, the very first boot after ingest always tripped that rewrite and
+// silently discarded our `audio_music` override — reproducing the exact "Could not load
+// music file ... Unrecognized audio format" bug this task exists to fix. Confirmed via a
+// live browser run before this fix (config.txt read back post-boot showed the stock
+// `audio_music = nil -- [[X:\ThemeHospital\Music]]` default, not our override).
+//
+// Pre-seeding these keeps needs_rewrite false so config_finder.lua leaves config.txt —
+// and our own theme_hospital_install/audio_music override lines — untouched. Values are
+// copied verbatim from config_defaults; if a future engine version adds a new default
+// key we don't know about, the rewrite would only recur for that one new key (a narrow
+// regression, not a silent reintroduction of this bug).
+const DEFAULT_CONFIG_LINES = [
+  'fullscreen = false', 'width = 800', 'height = 600', 'language = [[English]]',
+  'audio = true', 'free_build_mode = false', 'play_sounds = true', 'sound_volume = 0.5',
+  'play_announcements = true', 'announcement_volume = 0.5', 'play_music = true',
+  'music_volume = 0.5', 'prevent_edge_scrolling = false', 'capture_mouse = true',
+  'right_mouse_scrolling = false', 'adviser_disabled = false', 'scrolling_momentum = 0.8',
+  'twentyfour_hour_clock = true', 'warmth_colors_display_default = 1',
+  'grant_wage_increase = false', 'movies = true', 'play_intro = true', 'play_demo = true',
+  'allow_user_actions_while_paused = false', 'volume_opens_casebook = false',
+  'alien_dna_only_by_emergency = true', 'alien_dna_must_stand = true',
+  'alien_dna_can_knock_on_doors = false', 'disable_fractured_bones_females = true',
+  'enable_avg_contents = false', 'remove_destroyed_rooms = false',
+  'machine_menu_button = true', 'enable_screen_shake = true', 'audio_frequency = 22050',
+  'audio_channels = 2', 'audio_buffer_size = 2048', 'debug = false', 'track_fps = false',
+  'zoom_speed = 80', 'scroll_speed = 2', 'shift_scroll_speed = 4',
+  'new_graphics_folder = nil', 'use_new_graphics = false', 'check_for_updates = true',
+  'room_information_dialogs = true', 'allow_blocking_off_areas = false',
+  'direct_zoom = nil', 'new_machine_extra_info = true', 'player_name = [[]]',
+];
+
+export function ensureConfigDefaults(FS: EmFS): void {
+  const cfgFile = `${MOUNT_CONFIG}/config.txt`;
+  let text = '';
+  if (FS.analyzePath(cfgFile).exists) text = FS.readFile(cfgFile, { encoding: 'utf8' });
+  let changed = false;
+  for (const line of DEFAULT_CONFIG_LINES) {
+    const key = line.slice(0, line.indexOf('=')).trim();
+    if (new RegExp(`(^|\\n)\\s*${key}\\s*=`).test(text)) continue;
+    text = text.length ? `${text}\n${line}` : line;
+    changed = true;
+  }
+  if (changed) FS.writeFile(cfgFile, text);
+}
+
+// After data population, if rendered music is present, set audio_music so the engine
+// scans /th-data/MUSIC (rendered OGG/WAV) instead of Sound/Midi (failing XMIs). This is
+// the zero-engine-change realization of the music MUST-HAVE — see the M3 plan's storage
+// note: config_finder.lua defaults audio_music to nil, and Audio:init() (called
+// unprotected at app.lua:274) would concatenate a nil music_dir if we pointed it at a
+// path that never gets populated, so this only writes the line when MUSIC/ truly exists.
+// Relies on ensureConfigDefaults() having already made needs_rewrite false (see there) —
+// without that, config_finder.lua's own rewrite would silently discard this line.
+export function ensureMusicDir(FS: EmFS): void {
+  if (!FS.analyzePath(MOUNT_MUSIC).exists) return;
+  const cfgFile = `${MOUNT_CONFIG}/config.txt`;
+  const line = `audio_music = [[${MOUNT_MUSIC}]]`;
+  let text = '';
+  if (FS.analyzePath(cfgFile).exists) text = FS.readFile(cfgFile, { encoding: 'utf8' });
+  if (new RegExp(`audio_music\\s*=\\s*\\[\\[${MOUNT_MUSIC}\\]\\]`).test(text)) return;
+  if (/audio_music\s*=/.test(text)) {
+    text = text.replace(/audio_music\s*=\s*(\[\[[^\]]*\]\]|"[^"]*"|nil)/, line);
+  } else {
+    text = `${line}\n${text}`;
+  }
+  FS.writeFile(cfgFile, text);
+}
+
 export function buildModuleConfig(
   canvas: HTMLCanvasElement,
   hooks: ShellHooks,
@@ -71,7 +151,7 @@ export function buildModuleConfig(
     FS.syncfs(true, (err: unknown) => {
       if (err) hooks.onSaveSyncError(`initial syncfs: ${String(err)}`);
       populateData(FS)
-        .then((count) => { if (count > 0) ensureInstallPath(FS); })
+        .then((count) => { if (count > 0) { ensureInstallPath(FS); ensureConfigDefaults(FS); ensureMusicDir(FS); } })
         .catch((e) => hooks.onFatal(`asset population failed: ${String(e)}`))
         .finally(() => (config.removeRunDependency as (id: string) => void)(dep));
     });
