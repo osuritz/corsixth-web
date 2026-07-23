@@ -25,12 +25,51 @@ SOFTWARE.
 #include <stdexcept>
 #include <string_view>
 
+#if !__EMSCRIPTEN__
 #include "iso_fs.h"
+#endif
 #include "lua.hpp"
 #include "th_lua.h"
 #include "th_lua_internal.h"
 
 namespace {
+
+#if __EMSCRIPTEN__
+
+// ISO/DMG installer image support is compiled out of the Emscripten (wasm)
+// build: there is no browser-side way to mount a raw .iso/.dmg disk image,
+// and iso_fs.cpp's ISO 9660 parser would only bloat the wasm binary for a
+// feature that can never be exercised there.
+//
+// The Lua-visible TH.iso_fs surface is kept as a minimal stub instead of
+// being dropped entirely, because filesystem.lua captures
+// `require("TH").iso_fs` as a module-level local at load time (see
+// filesystem.lua:24) and directory_browser.lua indexes `TH.iso_fs` while
+// walking arbitrary directory trees (directory_browser.lua:23,108). Both
+// only ever *use* it behind a `FileSystem:isIso(name)` extension check
+// (name ends in .iso/.iso9660$/.dmg), which nothing in the wasm build's
+// virtual filesystem can satisfy - but if TH.iso_fs were plain nil,
+// indexing `.isValidRoot` on it would still throw a hard Lua error the
+// moment the directory browser ever rendered a tree containing a file
+// that merely happens to be *named* with one of those extensions (e.g.
+// something a user's uploaded zip contains). The stub keeps that surface
+// safe with no Lua-file edits: the constructor always reports failure, and
+// isValidRoot always reports "not a valid root".
+int l_isofs_new_stub(lua_State* L) {
+  lua_pushnil(L);
+  lua_pushnil(L);
+  lua_pushliteral(L,
+                   "ISO/DMG installer images are not supported in the "
+                   "browser build");
+  return 3;
+}
+
+int l_isofs_is_valid_root_stub(lua_State* L) {
+  lua_pushboolean(L, false);
+  return 1;
+}
+
+#else
 
 /**
  * Lua binding to construct a new iso_filesystem object.
@@ -175,7 +214,25 @@ int l_isofs_list_files(lua_State* L) {
   return 1;
 }
 
+#endif  // __EMSCRIPTEN__
+
 }  // namespace
+
+#if __EMSCRIPTEN__
+
+void lua_register_iso_fs(const lua_register_state* pState) {
+  // Bare-bones equivalent of what lua_class_binding<iso_filesystem> builds
+  // on other platforms: a table, callable via `ISO_FS(path, sep)`, exposed
+  // as TH.iso_fs. No metatable/__gc/__depersist_size machinery is needed
+  // since the stub never actually constructs an iso_filesystem instance.
+  lua_settop(pState->L, pState->top);
+  luaT_pushcclosuretable(pState->L, l_isofs_new_stub, 0);  // .. t
+  lua_pushcfunction(pState->L, l_isofs_is_valid_root_stub);  // .. t fn
+  lua_setfield(pState->L, -2, "isValidRoot");  // .. t
+  lua_setfield(pState->L, pState->main_table, "iso_fs");
+}
+
+#else
 
 void lua_register_iso_fs(const lua_register_state* pState) {
   lua_class_binding<iso_filesystem> lcb(pState, "iso_fs", l_isofs_new,
@@ -187,3 +244,5 @@ void lua_register_iso_fs(const lua_register_state* pState) {
   lcb.add_function(l_isofs_list_files, "listFiles");
   lcb.add_function(l_isofs_is_valid_root, "isValidRoot");
 }
+
+#endif  // __EMSCRIPTEN__
