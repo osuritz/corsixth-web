@@ -5,7 +5,7 @@
 // -> m3-latency.json. archive.org unavailable => SKIPPED (exit 0), never red.
 import puppeteer from 'puppeteer-core';
 import { spawn, execSync } from 'node:child_process';
-import { readFileSync, writeFileSync, copyFileSync, existsSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, copyFileSync, existsSync, rmSync, statSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -47,13 +47,65 @@ function chromePath() {
 // a warm profile is what avoids the first-load hang described above.
 const PROFILE_DIR = join(tmpdir(), 'corsixth-e2e-chrome-profile');
 const PRIME_MS = 20_000;
+const PROFILE_DIR_CAP_BYTES = 1_000_000_000; // 1GB
+const PRIMED_MARKER = join(PROFILE_DIR, '.e2e-primed-ok'); // written after a successful priming pass
+
+// Recursively sum file sizes under `dir`. Best-effort: a file that disappears mid-walk
+// (e.g. Chrome's own profile housekeeping) is simply skipped rather than failing the run —
+// this is a disk-hygiene safety valve, not a correctness check, so approximate is fine.
+function dirSizeBytes(dir) {
+  let total = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let names;
+    try { names = readdirSync(d); } catch { continue; }
+    for (const n of names) {
+      const p = join(d, n);
+      let st;
+      try { st = statSync(p); } catch { continue; }
+      if (st.isDirectory()) stack.push(p);
+      else total += st.size;
+    }
+  }
+  return total;
+}
+
+// Unbounded local disk growth in PROFILE_DIR is deliberate (see PROFILE_DIR comment
+// above — a warm profile avoids the one-time cold-start hang) but not infinite: cap it
+// so a long-lived dev machine or shared CI cache doesn't accumulate Chrome profile data
+// forever. Pruning forfeits the warm-profile benefit for the NEXT run only (the
+// following primeChromeProfile()/first real launch pays the cold-start cost once more,
+// then a fresh profile starts accumulating again) — an acceptable, self-healing
+// trade-off for an out-of-band safety valve that should rarely trigger in practice.
+function pruneProfileDirIfOversized(dir, capBytes) {
+  if (!existsSync(dir)) return;
+  const sizeBytes = dirSizeBytes(dir);
+  if (sizeBytes > capBytes) {
+    console.log(`[e2e] PROFILE_DIR ${dir} is ${(sizeBytes / 1e9).toFixed(2)}GB (cap ${(capBytes / 1e9).toFixed(1)}GB) — pruning before this run (cold-start cost will be paid once more)`);
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 // Best-effort priming pass: exercise the real ingest flow once on this profile dir so
 // whatever one-time cost gates the first-ever load happens here, off the clock, not
 // during the real timed/asserted run below. Failures here are swallowed — the profile
 // still gets "used once" even if this pass itself doesn't reach gameReady in time.
+//
+// Skip-if-already-primed is OPT-IN via E2E_SKIP_PRIMING_IF_PRIMED (default unset/off):
+// CI must never silently skip this pass by default (a fresh CI runner has no warm
+// profile and skipping would reintroduce the cold-start hang against the timed run
+// below), so the default keeps priming every invocation exactly as before this change.
+// When the env var IS set, a marker file written after a successful prime lets repeat
+// LOCAL runs against the same PROFILE_DIR skip the ~20s pass once it's known-warm.
 async function primeChromeProfile() {
+  const skipIfPrimed = !!process.env.E2E_SKIP_PRIMING_IF_PRIMED;
+  if (skipIfPrimed && existsSync(PRIMED_MARKER)) {
+    console.log(`[e2e] E2E_SKIP_PRIMING_IF_PRIMED set and ${PRIMED_MARKER} exists — skipping priming pass`);
+    return;
+  }
   let browser;
+  let ok = false;
   try {
     browser = await puppeteer.launch({ executablePath: chromePath(), args: ['--no-sandbox', '--disable-gpu'], userDataDir: PROFILE_DIR });
     const page = await browser.newPage();
@@ -64,12 +116,17 @@ async function primeChromeProfile() {
       const file = new File([blob], 'HOSP.zip', { type: 'application/zip' });
       await window.__corsixthTest.ingestZip(file, () => {});
     }).catch(() => {});
+    ok = true;
   } catch (e) {
     console.warn(`[e2e] priming pass error (non-fatal, best-effort): ${String(e).split('\n')[0]}`);
   } finally {
     await new Promise((r) => setTimeout(r, PRIME_MS));
     if (browser) await browser.close().catch(() => {});
   }
+  // Only record the marker on a real success path AND only when the opt-in is active —
+  // writing it unconditionally would be harmless (it's inert unless the env var is also
+  // set) but there's no reason to leave the file behind when the feature isn't in use.
+  if (ok && skipIfPrimed) { try { writeFileSync(PRIMED_MARKER, new Date().toISOString()); } catch { /* best-effort */ } }
 }
 
 // Fetch the demo fresh into $TMPDIR (never committed/cached). 3 tries; on exhaustion the
@@ -132,6 +189,7 @@ async function findQuicksave(page) {
 }
 
 try {
+  pruneProfileDirIfOversized(PROFILE_DIR, PROFILE_DIR_CAP_BYTES);
   await primeChromeProfile();
 
   const browser = await puppeteer.launch({ executablePath: chromePath(), args: ['--no-sandbox', '--disable-gpu'], userDataDir: PROFILE_DIR });
