@@ -1,13 +1,17 @@
 // Playable-slice E2E + input-latency instrumentation. This IS the v1 acceptance test.
 // Flow: fetch HOSP.zip per-run -> ingest via ?test=1 hook -> boot -> New Game ->
 // alt+shift+s quicksave -> reload -> alt+shift+l quickload -> assert (console markers
-// + FS existence of quicksave.qs). Then 30s PerformanceObserver(longtask)+rAF cadence
-// -> m3-latency.json. archive.org unavailable => SKIPPED (exit 0), never red.
+// + FS existence of quicksave.qs, PLUS a positive state round-trip: an unchanged
+// quicksave.qs size/mtime marker across the round trip, and a changed rendered-frame
+// hash before vs. after quickload — see statQuicksave()'s doc comment for exactly what
+// each proves). Then 30s PerformanceObserver(longtask)+rAF cadence -> m3-latency.json.
+// archive.org unavailable => SKIPPED (exit 0), never red.
 import puppeteer from 'puppeteer-core';
 import { spawn, execSync } from 'node:child_process';
 import { readFileSync, writeFileSync, copyFileSync, existsSync, rmSync, statSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 
 const DIST = resolve('dist');
 const PORT = 8126;
@@ -188,6 +192,40 @@ async function findQuicksave(page) {
   });
 }
 
+// Returns { path, size, mtimeMs } for the first quicksave.qs found under the config
+// mount (there should be exactly one), or null if none exists. This is the "positive
+// state round-trip" marker: `App:quickLoad()` (CorsixTH/Lua/app.lua) only READS the
+// file when one already exists (it writes only in the no-save-yet fallback branch,
+// which the flow below never takes) and never calls TH.SyncEmscriptenFS() on that
+// read path, so the on-disk bytes — and therefore size/mtime — should be byte-for-byte
+// and timestamp-for-timestamp identical immediately after alt+shift+s and again after
+// the reload + alt+shift+l that follows. `mtime` survives the reload deliberately: the
+// engine's IDBFS remount (web/src/fs-setup.ts) restores each file's stored mtime via
+// FS.utime() after repopulating MEMFS from IndexedDB, rather than leaving it at "now" —
+// so an unchanged mtime here is a genuine signal (the file was never rewritten across
+// the round trip), not an artifact of the remount always reporting "now".
+// What this DOES prove: the exact file quicksave wrote is the exact file quickload
+// later read (rules out e.g. a stale/replaced/truncated save surviving the reload).
+// What this does NOT prove: that the loaded bytes were successfully deserialized into
+// a running simulation — that's what the canvas-frame-change signal below is for.
+async function statQuicksave(page) {
+  return page.evaluate(() => {
+    const FS = window.__corsixthTest.getFS?.(); if (!FS) return null;
+    let found = null;
+    (function walk(d) {
+      if (found) return;
+      let names = []; try { names = FS.readdir(d); } catch { return; }
+      for (const n of names) { if (n === '.' || n === '..') continue;
+        const p = d === '/' ? '/' + n : d + '/' + n;
+        let m; try { m = FS.stat(p); } catch { continue; }
+        if (FS.isDir(m.mode)) { walk(p); if (found) return; }
+        else if (n.toLowerCase() === 'quicksave.qs') { found = { path: p, size: m.size, mtimeMs: new Date(m.mtime).getTime() }; return; }
+      }
+    })('/home/web_user/.config/CorsixTH');
+    return found;
+  });
+}
+
 try {
   pruneProfileDirIfOversized(PROFILE_DIR, PROFILE_DIR_CAP_BYTES);
   await primeChromeProfile();
@@ -299,16 +337,64 @@ try {
   if (!savedBefore) markFail('quicksave.qs not found in FS after alt+shift+s');
   else console.log('[e2e] post-save check PASSED: quicksave.qs present after alt+shift+s');
 
-  // 6) Reload, boot, quickload (alt+shift+l).
+  // Capture the round-trip marker (size + mtime) right after the save settles — see
+  // statQuicksave's doc comment for exactly what this proves/doesn't prove.
+  const quicksaveMarker = await statQuicksave(page);
+  if (!quicksaveMarker) markFail('quicksave.qs stat unavailable right after alt+shift+s (cannot capture size/mtime marker)');
+  else console.log(`[e2e] quicksave marker captured: ${quicksaveMarker.path} size=${quicksaveMarker.size}B mtime=${new Date(quicksaveMarker.mtimeMs).toISOString()}`);
+
+  // 6) Reload, boot, re-enter a game, quickload (alt+shift+l).
   await page.goto(`http://localhost:${PORT}/index.html?test=1`, { waitUntil: 'load' });
   const rebooted = await page.waitForFunction(
     () => document.getElementById('overlay')?.classList.contains('hidden'),
     { timeout: 90_000 }).then(() => true).catch(() => false);
   if (!rebooted) markFail('did not reboot into game after reload');
+
+  // The alt+shift+l chord is NOT a global hotkey: CorsixTH/Lua/dialogs/bottom_panel.lua
+  // ("ui:addKeyHandler("ingame_quickLoad", self, self.quickLoad)") registers it only
+  // while the in-game bottom panel exists, i.e. only once actually in a game session —
+  // it does nothing from the main menu the reload above lands on (verified empirically
+  // while building this check: pressing it at the main menu produced byte-identical
+  // before/after screenshots, a silent no-op the OLD error-string-only check could not
+  // have caught either way). So re-enter via the same New Game entry point used in step
+  // 4 before the chord can do anything at all.
+  await clickCanvas(NEW_GAME_FRAC.fx, NEW_GAME_FRAC.fy);
+  await new Promise((r) => setTimeout(r, 4000));
   await clickCanvas(0.5, 0.5);
+
+  // Gameplay-state signal (liveness, not a load-specific proof — see below for what
+  // this DOES and does NOT establish): capture the rendered frame BEFORE quickload,
+  // then sample several more frames across the following few seconds and require at
+  // least one to differ from the "before" frame. Captured via Puppeteer's own
+  // screenshot (a compositor-level capture of what's actually on screen), NOT
+  // canvas.toDataURL()/getImageData() from inside the page — the engine's WebGL
+  // context is created without `preserveDrawingBuffer`, so an in-page readback taken
+  // on a later tick is not reliably the last-drawn frame; a screenshot sidesteps that
+  // entirely.
+  //
+  // What this proves: the canvas is still actively rendering (not frozen/hung/crashed
+  // silently in a way that produces no matching error string — see the FAILURES list
+  // below) through the alt+shift+l press and the following few seconds.
+  // What this does NOT prove: that alt+shift+l specifically triggered a load. Verified
+  // empirically while building this check (inspected the sampled frames by hand):
+  // this fresh New Game entry's own ordinary simulation clock (the date readout
+  // ticking, e.g. "2 Jan" -> "3 Jan") and toolbar-icon flash animation already
+  // produce frame-to-frame differences within
+  // a few seconds regardless of whether the load actually ran — the save file here is
+  // tiny (~500KB) and the demo's own world-rebuild step showed no visually-distinct
+  // "loading" frame at this sampling cadence. So this check is a genuine but MODEST
+  // signal (rules out a silent freeze), not a substitute for the two checks that ARE
+  // load-specific: the loadErrors check just below (Lua/WASM-level failure strings)
+  // and the quicksave.qs byte/mtime round-trip assertion further down (proves the file
+  // App:quickLoad() reads is the exact file App:quickSave() wrote).
+  const preLoadShot = await page.screenshot();
   const errBefore = transcript.length;
   await pressChord('KeyL');
-  await new Promise((r) => setTimeout(r, 3000));
+  const midLoadShots = [];
+  for (let i = 0; i < 6; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    midLoadShots.push(await page.screenshot());
+  }
   // Engine-specific load-failure signatures, not a generic "Failed to load" match:
   // - `RuntimeError: Aborted` / `_asyncify_start_unwind`: WASM/Asyncify-level crash.
   // - `An error has occurred!` (+ "Running: The keyboard handler."): CorsixTH/Lua/
@@ -329,6 +415,39 @@ try {
     !l.startsWith('Failed to load resource:') &&
     /RuntimeError: Aborted|_asyncify_start_unwind|An error has occurred!|Error while loading game:|cannot load the quicksave/i.test(l));
   if (loadErrors.length) markFail(`errors during quickload: ${loadErrors.join(' | ')}`);
+
+  // Liveness check (see the fuller doc comment above `preLoadShot`): across the
+  // sampled post-chord window, at least one frame must differ from the pre-chord
+  // frame — catches a silent freeze/hang that prints no matching error string.
+  const preLoadHash = createHash('sha256').update(preLoadShot).digest('hex');
+  const midLoadHashes = midLoadShots.map((s) => createHash('sha256').update(s).digest('hex'));
+  const anyDifferent = midLoadHashes.some((h) => h !== preLoadHash);
+  if (!anyDifferent) {
+    markFail('canvas frame identical (sha256) across the entire post-alt+shift+l sampling window — rendering appears frozen/hung (see doc comment above: this is a liveness check, not proof alt+shift+l itself triggered a load)');
+  } else {
+    console.log(`[e2e] liveness check PASSED: rendered frame changed at least once during the post-chord window (pre=${preLoadHash.slice(0, 8)}, frames=${midLoadHashes.map((h) => h.slice(0, 8)).join(',')})`);
+  }
+
+  // Positive round-trip assertion: the quicksave.qs marker captured right after
+  // alt+shift+s must be BYTE- and TIMESTAMP-IDENTICAL to the same file's marker read
+  // right now, after the reload + alt+shift+l. See statQuicksave's doc comment for the
+  // full reasoning; in short, App:quickLoad() only reads (does not rewrite) an existing
+  // quicksave, so this file must not have moved across the round trip — if it has,
+  // something (a stray autosave, a differently-named file being matched, IDBFS not
+  // restoring the stored mtime) broke the assumption the whole flow depends on.
+  const quicksaveMarkerAfterLoad = await statQuicksave(page);
+  if (!quicksaveMarkerAfterLoad) {
+    markFail('quicksave.qs stat unavailable after alt+shift+l (cannot verify round-trip marker)');
+  } else if (quicksaveMarker) {
+    const sizeMatch = quicksaveMarkerAfterLoad.size === quicksaveMarker.size;
+    const mtimeMatch = quicksaveMarkerAfterLoad.mtimeMs === quicksaveMarker.mtimeMs;
+    if (!sizeMatch || !mtimeMatch) {
+      markFail(`quicksave.qs marker changed across save->reload->quickload (before: size=${quicksaveMarker.size}B mtime=${new Date(quicksaveMarker.mtimeMs).toISOString()}; after: size=${quicksaveMarkerAfterLoad.size}B mtime=${new Date(quicksaveMarkerAfterLoad.mtimeMs).toISOString()})`);
+    } else {
+      console.log(`[e2e] quicksave round-trip PASSED: size=${quicksaveMarkerAfterLoad.size}B mtime=${new Date(quicksaveMarkerAfterLoad.mtimeMs).toISOString()} unchanged across save->reload->quickload`);
+    }
+  }
+
   const stillSaved = await page.evaluate(() => {
     const FS = window.__corsixthTest.getFS?.(); if (!FS) return false;
     try { return FS.analyzePath('/home/web_user/.config/CorsixTH/Saves/quicksave.qs').exists; }
