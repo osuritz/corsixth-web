@@ -28,6 +28,23 @@ function mkdirDeep(FS: EmFS, path: string): void {
   }
 }
 
+// Defensive guard against a real, empirically-confirmed fragility: config_finder.lua's
+// needs_rewrite scan (config_finder.lua:172, `string.find(file_contents, "\n" ..
+// "%s*" .. key .. "%s*=")`) requires a LITERAL leading "\n" before every tracked key —
+// a tracked key sitting as the literal first line of config.txt (no preceding newline)
+// is invisible to that scan and trips needs_rewrite for that key. Today this is only
+// incidentally avoided: ensureMusicDir's prepend happens to push theme_hospital_install
+// off line 0, but ONLY when MUSIC/ already exists (i.e. after music has rendered at
+// least once) — a freshly-ingested profile with no rendered tracks yet (or any future
+// reordering of these preRun calls) would leave theme_hospital_install sitting on line
+// 0. Guarantee a non-tracked first line UNCONDITIONALLY, independent of call order or
+// whether ensureMusicDir ever runs, so no tracked key can ever occupy line 0.
+const LINE0_GUARD = '-- corsixth-web generated config';
+function ensureLine0Guard(text: string): string {
+  if (text === LINE0_GUARD || text.startsWith(`${LINE0_GUARD}\n`)) return text;
+  return text.length ? `${LINE0_GUARD}\n${text}` : LINE0_GUARD;
+}
+
 // Ensure config.txt sends the engine straight to /th-data (skips setup UI).
 // config.txt is a Lua chunk of `key = value` lines; install path uses [[...]] strings
 // (config_finder.lua). Rewrite/append only the theme_hospital_install line.
@@ -36,13 +53,16 @@ export function ensureInstallPath(FS: EmFS): void {
   const line = `theme_hospital_install = [[${MOUNT_DATA}]]`;
   let text = '';
   if (FS.analyzePath(cfgFile).exists) text = FS.readFile(cfgFile, { encoding: 'utf8' });
-  if (new RegExp(`theme_hospital_install\\s*=\\s*\\[\\[${MOUNT_DATA}\\]\\]`).test(text)) return;
-  if (/theme_hospital_install\s*=/.test(text)) {
-    text = text.replace(/theme_hospital_install\s*=\s*(\[\[[^\]]*\]\]|"[^"]*"|nil)/, line);
-  } else {
-    text = `${line}\n${text}`;
+  const before = text;
+  text = ensureLine0Guard(text);
+  if (!new RegExp(`theme_hospital_install\\s*=\\s*\\[\\[${MOUNT_DATA}\\]\\]`).test(text)) {
+    if (/theme_hospital_install\s*=/.test(text)) {
+      text = text.replace(/theme_hospital_install\s*=\s*(\[\[[^\]]*\]\]|"[^"]*"|nil)/, line);
+    } else {
+      text = `${text}\n${line}`;
+    }
   }
-  FS.writeFile(cfgFile, text);
+  if (text !== before) FS.writeFile(cfgFile, text);
 }
 
 // Mirrors CorsixTH/Lua/config_finder.lua's `config_defaults` table (this pinned engine
@@ -91,14 +111,14 @@ export function ensureConfigDefaults(FS: EmFS): void {
   const cfgFile = `${MOUNT_CONFIG}/config.txt`;
   let text = '';
   if (FS.analyzePath(cfgFile).exists) text = FS.readFile(cfgFile, { encoding: 'utf8' });
-  let changed = false;
+  const before = text;
+  text = ensureLine0Guard(text);
   for (const line of DEFAULT_CONFIG_LINES) {
     const key = line.slice(0, line.indexOf('=')).trim();
     if (new RegExp(`(^|\\n)\\s*${key}\\s*=`).test(text)) continue;
-    text = text.length ? `${text}\n${line}` : line;
-    changed = true;
+    text = `${text}\n${line}`;
   }
-  if (changed) FS.writeFile(cfgFile, text);
+  if (text !== before) FS.writeFile(cfgFile, text);
 }
 
 // After data population, if rendered music is present, set audio_music so the engine
@@ -119,7 +139,9 @@ export function ensureMusicDir(FS: EmFS): void {
   if (/audio_music\s*=/.test(text)) {
     text = text.replace(/audio_music\s*=\s*(\[\[[^\]]*\]\]|"[^"]*"|nil)/, line);
   } else {
-    text = `${line}\n${text}`;
+    // Append (not prepend) — keeps the line-0 guard permanently first regardless of
+    // whether ensureMusicDir ever runs (see ensureLine0Guard's comment above).
+    text = `${text}\n${line}`;
   }
   FS.writeFile(cfgFile, text);
 }
