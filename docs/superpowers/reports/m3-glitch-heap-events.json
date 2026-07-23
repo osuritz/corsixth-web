@@ -1,0 +1,397 @@
+{
+  "chunks": [
+    {
+      "chunkIndex": 0,
+      "startedAt": "2026-07-23T15:12:06.885Z",
+      "chunkMs": 480000,
+      "shotIntervalMs": 30000,
+      "screenshots": [
+        {
+          "index": 1,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-01.png",
+          "tMs": 30096
+        },
+        {
+          "index": 2,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-02.png",
+          "tMs": 60195
+        },
+        {
+          "index": 3,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-03.png",
+          "tMs": 90294
+        },
+        {
+          "index": 4,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-04.png",
+          "tMs": 120403
+        },
+        {
+          "index": 5,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-05.png",
+          "tMs": 150493
+        },
+        {
+          "index": 6,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-06.png",
+          "tMs": 180593
+        },
+        {
+          "index": 7,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-07.png",
+          "tMs": 210696
+        },
+        {
+          "index": 8,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-08.png",
+          "tMs": 240792
+        },
+        {
+          "index": 9,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-09.png",
+          "tMs": 270892
+        },
+        {
+          "index": 10,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-10.png",
+          "tMs": 300992
+        },
+        {
+          "index": 11,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-11.png",
+          "tMs": 331026
+        },
+        {
+          "index": 12,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-12.png",
+          "tMs": 361111
+        },
+        {
+          "index": 13,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-13.png",
+          "tMs": 391213
+        },
+        {
+          "index": 14,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-14.png",
+          "tMs": 421324
+        },
+        {
+          "index": 15,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-15.png",
+          "tMs": 451419
+        },
+        {
+          "index": 16,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-16.png",
+          "tMs": 481496
+        }
+      ],
+      "heapGrowthEvents": [],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 51191343,
+        "totalJSHeapSize": 51985071,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "Failed to load resource: the server responded with a status of 404 (File not found)"
+      ]
+    },
+    {
+      "chunkIndex": 1,
+      "startedAt": "2026-07-23T15:29:21.077Z",
+      "chunkMs": 60000,
+      "shotIntervalMs": 20000,
+      "screenshots": [
+        {
+          "index": 19,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-19.png",
+          "tMs": 20079
+        },
+        {
+          "index": 20,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-20.png",
+          "tMs": 40146
+        },
+        {
+          "index": 21,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-21.png",
+          "tMs": 60197
+        }
+      ],
+      "heapGrowthEvents": [],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 52028150,
+        "totalJSHeapSize": 53559314,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "Failed to load resource: the server responded with a status of 404 (File not found)"
+      ]
+    },
+    {
+      "chunkIndex": 2,
+      "startedAt": "2026-07-23T15:31:20.427Z",
+      "chunkMs": 480000,
+      "shotIntervalMs": 30000,
+      "screenshots": [
+        {
+          "index": 24,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-24.png",
+          "tMs": 30059
+        },
+        {
+          "index": 25,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-25.png",
+          "tMs": 60127
+        },
+        {
+          "index": 26,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-26.png",
+          "tMs": 90177
+        },
+        {
+          "index": 27,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-27.png",
+          "tMs": 120227
+        },
+        {
+          "index": 28,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-28.png",
+          "tMs": 150276
+        },
+        {
+          "index": 29,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-29.png",
+          "tMs": 180342
+        },
+        {
+          "index": 30,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-30.png",
+          "tMs": 210408
+        },
+        {
+          "index": 31,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-31.png",
+          "tMs": 240476
+        },
+        {
+          "index": 32,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-32.png",
+          "tMs": 270543
+        },
+        {
+          "index": 33,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-33.png",
+          "tMs": 300624
+        },
+        {
+          "index": 34,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-34.png",
+          "tMs": 330675
+        },
+        {
+          "index": 35,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-35.png",
+          "tMs": 360770
+        },
+        {
+          "index": 36,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-36.png",
+          "tMs": 390837
+        },
+        {
+          "index": 37,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-37.png",
+          "tMs": 420921
+        },
+        {
+          "index": 38,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-38.png",
+          "tMs": 451021
+        },
+        {
+          "index": 39,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-39.png",
+          "tMs": 481122
+        }
+      ],
+      "heapGrowthEvents": [],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 51448355,
+        "totalJSHeapSize": 52096255,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "pageerror: null function"
+      ]
+    },
+    {
+      "chunkIndex": 3,
+      "startedAt": "2026-07-23T15:43:30.732Z",
+      "chunkMs": 480000,
+      "shotIntervalMs": 30000,
+      "screenshots": [
+        {
+          "index": 42,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-42.png",
+          "tMs": 30062
+        },
+        {
+          "index": 43,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-43.png",
+          "tMs": 60110
+        },
+        {
+          "index": 44,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-44.png",
+          "tMs": 90144
+        },
+        {
+          "index": 45,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-45.png",
+          "tMs": 120211
+        },
+        {
+          "index": 46,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-46.png",
+          "tMs": 150277
+        },
+        {
+          "index": 47,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-47.png",
+          "tMs": 180343
+        },
+        {
+          "index": 48,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-48.png",
+          "tMs": 210424
+        },
+        {
+          "index": 49,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-49.png",
+          "tMs": 240493
+        },
+        {
+          "index": 50,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-50.png",
+          "tMs": 270575
+        },
+        {
+          "index": 51,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-51.png",
+          "tMs": 300624
+        },
+        {
+          "index": 52,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-52.png",
+          "tMs": 330675
+        },
+        {
+          "index": 53,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-53.png",
+          "tMs": 360755
+        },
+        {
+          "index": 54,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-54.png",
+          "tMs": 390854
+        },
+        {
+          "index": 55,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-55.png",
+          "tMs": 420953
+        },
+        {
+          "index": 56,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-56.png",
+          "tMs": 451036
+        },
+        {
+          "index": 57,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/docs/superpowers/reports/m3-glitch-57.png",
+          "tMs": 481135
+        }
+      ],
+      "heapGrowthEvents": [],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 51355008,
+        "totalJSHeapSize": 52335196,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "pageerror: table index is out of bounds"
+      ]
+    }
+  ]
+}
