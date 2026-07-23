@@ -80,7 +80,7 @@ jobs:
 
   deploy-pages:
     if: github.event_name == 'push'
-    needs: [build, boot-smoke]
+    needs: [build, boot-smoke, e2e-playable]
     runs-on: ubuntu-latest
     permissions:
       pages: write
