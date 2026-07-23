@@ -1,6 +1,19 @@
 // Lazy-loaded music renderer: XMI -> MID -> PCM -> OGG (Vorbis, primary) / WAV (fallback),
-// all client-side, during ingest. Built as a separate IIFE bundle (dist/music-render.js)
-// and injected on demand so the synth + its weight never load on the initial page.
+// all client-side. Built as a separate IIFE bundle (dist/music-render.js) so the synth +
+// its weight never load on the initial page.
+//
+// DUAL-MODE (M3+ worker offload): this exact bundle runs in TWO different contexts,
+// detected at load time via isWorkerContext below:
+//  - Worker mode (preferred): music-orchestrator.ts constructs `new Worker
+//    ('music-render.js')`, keeping the ~3s/track synth+encode work off the main thread
+//    entirely (previously a real, user-visible freeze per track). The worker fetches
+//    its own soundfont copy (cached per worker instance) and answers postMessage
+//    'render' requests — see the isWorkerContext branch at the bottom of this file.
+//  - Same-thread fallback: if `new Worker(...)` throws (restrictive CSP, very old
+//    browser) or errors before ever answering a request, music-orchestrator.ts loads
+//    this SAME bundle via a <script> tag instead (as the pre-worker code always did)
+//    and calls the plain global function directly — synchronous, blocking, but
+//    zero-risk and functionally identical to worker mode.
 //
 // AMENDED (sponsor size question, docs/superpowers/m3 plan amendment 2026-07-23): OGG
 // Vorbis is the primary output — the mixer build already decodes it
@@ -69,4 +82,58 @@ async function renderXmiToAudio(
   }
 }
 
-(self as unknown as { __corsixthRenderMusic: unknown }).__corsixthRenderMusic = { renderXmiToAudio };
+// Worker-mode message protocol. Kept minimal: the worker fetches+caches its own
+// soundfont copy internally (see getSoundfont below), so 'render' requests only ever
+// need to carry the XMI bytes — no 'init' handshake, no soundfont round-trip through
+// postMessage (that would structured-clone ~20MB on every worker (re)start for no
+// benefit over the worker just fetching it directly, same-origin, same as main thread).
+interface RenderRequest { type: 'render'; id: string; xmi: Uint8Array }
+type RenderResponse =
+  | { type: 'result'; id: string; ok: true; bytes: Uint8Array; ext: 'OGG' | 'WAV' }
+  | { type: 'result'; id: string; ok: false; error: string };
+
+// tsconfig's lib is ["ES2022","DOM","DOM.Iterable"] (no "webworker" — see tsconfig.json)
+// project-wide, so `self` types as Window, whose postMessage/onmessage shape doesn't
+// match DedicatedWorkerGlobalScope's. Cast narrowly, only for this worker-only branch.
+interface WorkerCtx {
+  postMessage(message: unknown, transfer?: Transferable[]): void;
+  onmessage: ((ev: MessageEvent<RenderRequest>) => void) | null;
+  importScripts?: (...urls: string[]) => void;
+}
+
+// importScripts exists ONLY on WorkerGlobalScope (dedicated/shared workers), never on
+// window — a reliable same-bundle context detector without needing the webworker lib.
+const isWorkerContext = typeof (self as unknown as WorkerCtx).importScripts === 'function';
+
+if (isWorkerContext) {
+  const ctx = self as unknown as WorkerCtx;
+  let soundfontPromise: Promise<Uint8Array> | undefined;
+  function getSoundfont(): Promise<Uint8Array> {
+    if (!soundfontPromise) {
+      // Relative fetch resolves against the worker's own location (this script's URL,
+      // same directory as index.html/FluidR3.sf3 in dist/) — identical to how the main
+      // thread fetches it in the same-thread fallback path.
+      soundfontPromise = fetch('FluidR3.sf3').then(async (res) => {
+        if (!res.ok) throw new Error(`soundfont fetch ${res.status}`);
+        return new Uint8Array(await res.arrayBuffer());
+      }).catch((e) => { soundfontPromise = undefined; throw e; }); // don't cache a failure
+    }
+    return soundfontPromise;
+  }
+  ctx.onmessage = (ev) => {
+    const msg = ev.data;
+    if (msg.type !== 'render') return;
+    getSoundfont()
+      .then((sf) => renderXmiToAudio(msg.xmi, sf))
+      .then(({ bytes, ext }) => {
+        const resp: RenderResponse = { type: 'result', id: msg.id, ok: true, bytes, ext };
+        ctx.postMessage(resp, [bytes.buffer]); // zero-copy transfer back — worker never reuses `bytes`
+      })
+      .catch((e) => {
+        const resp: RenderResponse = { type: 'result', id: msg.id, ok: false, error: String(e instanceof Error ? e.message : e) };
+        ctx.postMessage(resp);
+      });
+  };
+} else {
+  (self as unknown as { __corsixthRenderMusic: unknown }).__corsixthRenderMusic = { renderXmiToAudio };
+}
