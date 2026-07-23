@@ -1,6 +1,6 @@
 import { build } from 'esbuild';
 import { cpSync, mkdirSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
 
 const TESTS = process.argv.includes('--tests');
 const OUT = TESTS ? 'dist-test' : 'dist';

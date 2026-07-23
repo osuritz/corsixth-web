@@ -51,7 +51,10 @@ try {
       const hit = FAILURES.find((f) => line.includes(f));
       if (hit) resolveOutcome({ ok: false, line, marker: hit });
     });
-    page.on('pageerror', (err) => { transcript.push(`pageerror: ${err.message}`); });
+    page.on('pageerror', (err) => {
+      transcript.push(`pageerror: ${err.message}`);
+      resolveOutcome({ ok: false, line: `pageerror: ${err.message}`, marker: 'pageerror' });
+    });
   });
   await page.goto(`http://localhost:${PORT}/index.html`);
   verdict = await Promise.race([

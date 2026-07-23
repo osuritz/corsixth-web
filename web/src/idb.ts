@@ -43,7 +43,6 @@ export const getAsset = (path: string): Promise<Uint8Array | undefined> =>
   tx('readonly', (s) => s.get(path) as IDBRequest<Uint8Array | undefined>);
 export const listAssetPaths = (): Promise<string[]> =>
   tx('readonly', (s) => s.getAllKeys() as IDBRequest<IDBValidKey[]>).then((ks) => ks.map(String));
-export const assetCount = (): Promise<number> => tx('readonly', (s) => s.count());
 export const clearAssets = (): Promise<void> => tx('readwrite', (s) => s.clear()).then(() => undefined);
 
 // Boot-time: copy every cached asset into the engine's /th-data (MEMFS). One entry

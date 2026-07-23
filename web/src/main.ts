@@ -34,6 +34,14 @@ export async function bootEngine(populateData: (FS: EmFS) => Promise<number>): P
   finally { clearTimeout(watchdog); }
 }
 
+// Reuses setStatus's null-safe DOM lookup: by the time this runs, showOnboarding()
+// has replaced #overlay-status with the onboarding markup, so setStatus falls
+// through to #ingest-status (see setStatus's own comment above).
+function showOnboardingWithMessage(message?: string): void {
+  showOnboarding();
+  if (message) setStatus(message, true);
+}
+
 export async function startShell(): Promise<void> {
   const paths = await listAssetPaths().catch(() => [] as string[]);
   if (paths.length > 0) {
@@ -43,15 +51,10 @@ export async function startShell(): Promise<void> {
     // instead of booting the engine into an invisible installer UI.
     console.error('[shell] stored assets invalid, missing:', missing);
     await clearAssets().catch(() => undefined);
-    showOnboarding();
-    const ingestStatus = document.getElementById('ingest-status');
-    if (ingestStatus) {
-      ingestStatus.textContent = 'Stored game data was incomplete — please load it again.';
-      ingestStatus.classList.add('error');
-    }
+    showOnboardingWithMessage('Stored game data was incomplete — please load it again.');
     return;
   }
-  showOnboarding();
+  showOnboardingWithMessage();
 }
 // Guarded: onboarding.ts imports setStatus from here, so bundling onboarding.test.ts
 // (Node, no DOM/IndexedDB) pulls in this module's top-level code too — only

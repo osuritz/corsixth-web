@@ -3,6 +3,13 @@ name: WASM build
 on:
   push:
     branches: [wasm]
+    # Docs-only pushes shouldn't burn a full build+deploy cycle. Deliberately NOT
+    # applied to pull_request below: a path filter that excludes every changed file
+    # means the workflow never runs at all, which can leave required PR status
+    # checks stuck "Expected" forever — PRs keep full-signal CI regardless of paths.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
     branches: [wasm]
 
@@ -11,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     container: emscripten/emsdk:6.0.3   # keep in lockstep with build/build.sh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure and build
         run: |
@@ -22,7 +29,7 @@ jobs:
       - name: Artifact hygiene gate
         run: build/check-artifacts.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: corsixth-wasm
           path: |
@@ -34,12 +41,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest   # bare runner: system Chrome preinstalled; NOT the emsdk container
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: corsixth-wasm
           path: build-wasm/
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - name: Install puppeteer-core
         run: cd web && npm ci
@@ -51,12 +58,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest   # bare runner: system Chrome; NOT the emsdk container
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: corsixth-wasm
           path: build-wasm/
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - name: Build shell
         run: cd web && npm ci && npm run fetch-assets && npm run build
@@ -65,7 +72,7 @@ jobs:
         run: cd web && node e2e-playable.mjs
       - name: Upload latency verdict
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: m3-latency
           path: docs/superpowers/reports/m3-latency.json
@@ -85,22 +92,28 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: corsixth-wasm
           path: build-wasm/
       - name: Artifact hygiene gate (defense in depth before publish)
         run: build/check-artifacts.sh
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - name: Build shell
         run: cd web && npm ci && npm run fetch-assets && npm run build
         env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
       - name: No root-absolute URLs (Pages subpath safety)
-        run: '! grep -nE "(src|href)=\"/" web/dist/index.html'
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+        run: |
+          for f in web/dist/index.html web/dist/main.js; do
+            test -f "$f" || { echo "FAIL: $f missing"; exit 1; }
+          done
+          if grep -REn '(src|href)="/' web/dist/index.html web/dist/main.js; then
+            echo "FAIL: root-absolute URL in index.html/main.js (breaks the /corsixth-web/ subpath)"; exit 1
+          fi
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with: { path: web/dist }
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
