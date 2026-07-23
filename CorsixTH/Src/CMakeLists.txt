@@ -52,11 +52,22 @@ if (EMSCRIPTEN)
     target_include_directories(CorsixTH_lib PUBLIC ${lua54_SOURCE_DIR})
 endif ()
 
+# The ISO 9660 disk image reader (iso_fs.cpp) has no use in the Emscripten/wasm
+# build: there is no way to mount a real .iso/.dmg install image from a
+# browser, so the parser would only add dead weight to the wasm binary. The
+# Lua-visible TH.iso_fs surface it normally backs is instead provided by a
+# minimal stub registered directly in th_lua_iso.cpp's __EMSCRIPTEN__ branch,
+# so filesystem.lua / directory_browser.lua need no changes.
+set(ISO_FS_SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/iso_fs.cpp)
+if (EMSCRIPTEN)
+    set(ISO_FS_SRC_FILES "")
+endif ()
+
 target_sources(CorsixTH_lib
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/random.c
     ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/iso_fs.cpp
+    ${ISO_FS_SRC_FILES}
     ${CMAKE_CURRENT_SOURCE_DIR}/lua_rnc.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/persist_lua.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/run_length_encoder.cpp
