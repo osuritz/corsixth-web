@@ -251,8 +251,25 @@ try {
   const errBefore = transcript.length;
   await pressChord('KeyL');
   await new Promise((r) => setTimeout(r, 3000));
+  // Engine-specific load-failure signatures, not a generic "Failed to load" match:
+  // - `RuntimeError: Aborted` / `_asyncify_start_unwind`: WASM/Asyncify-level crash.
+  // - `An error has occurred!` (+ "Running: The keyboard handler."): CorsixTH/Lua/
+  //   app.lua's uncaught-handler-error trap — App:quickLoad()'s `self:load(...)` call
+  //   is NOT wrapped in a pcall, so a genuine load failure during alt+shift+l surfaces
+  //   here, not as any "Failed to load ..." string.
+  // - `Error while loading game:` / `cannot load the quicksave`: the engine's own
+  //   `_S.errors.load_prefix` / `_S.errors.load_quick_save` phrasing (english.lua),
+  //   used by the Load-Game dialog and the "no quicksave to load" case respectively.
+  // Also explicitly excludes any line starting with the browser's own resource-load
+  // console prefix: a prior broad `/Failed to load/i` match false-positived on Chrome's
+  // benign, unrelated "Failed to load resource: the server responded with a status of
+  // 404 (File not found)" line — the browser's automatic favicon.ico probe fired on
+  // every page load in this flow (pre-existing/benign; see task-2.6/6/7 E2E reports for
+  // the same favicon 404, and task-3-fixer's incident report for this exact false
+  // positive, reproduced identically on both db8d06df and d01f5539).
   const loadErrors = transcript.slice(errBefore).filter((l) =>
-    /RuntimeError: Aborted|_asyncify_start_unwind|Failed to load/i.test(l));
+    !l.startsWith('Failed to load resource:') &&
+    /RuntimeError: Aborted|_asyncify_start_unwind|An error has occurred!|Error while loading game:|cannot load the quicksave/i.test(l));
   if (loadErrors.length) markFail(`errors during quickload: ${loadErrors.join(' | ')}`);
   const stillSaved = await page.evaluate(() => {
     const FS = window.__corsixthTest.getFS?.(); if (!FS) return false;
