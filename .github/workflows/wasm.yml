@@ -59,7 +59,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Build shell
-        run: cd web && npm ci && npm run build
+        run: cd web && npm ci && npm run fetch-assets && npm run build
         env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
       - name: Playable-slice E2E + latency
         run: cd web && node e2e-playable.mjs
@@ -95,7 +95,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Build shell
-        run: cd web && npm ci && npm run build
+        run: cd web && npm ci && npm run fetch-assets && npm run build
         env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
       - name: No root-absolute URLs (Pages subpath safety)
         run: '! grep -nE "(src|href)=\"/" web/dist/index.html'
