@@ -97,23 +97,99 @@ async function finishIngest(count: number): Promise<void> {
   location.reload();
 }
 
-// Drain checkpoint: caps putAsset promises accumulated per reader-chunk boundary. Each
-// promise holds one assembled file buffer alive until IndexedDB commits it. NOTE: fflate
-// fires onfile/ondata synchronously within a chunk, so the effective in-flight bound is
-// coarser than MAX_INFLIGHT_PUTS (measured ~110-160MB peak on a 320MB zip vs 270MB
-// unbounded — see docs/superpowers/reports/m3-ingest-memory.md). Per-file backpressure
-// (draining inside ondata's `final` branch instead of per reader chunk) is a known
-// follow-up for a tighter bound.
+// True per-file backpressure bound: at most this many writes are EVER actually running
+// concurrently (see BoundedQueue below), and the reader loop won't pull the next stream
+// chunk while the backlog (queued + in-flight) is at or above this bound.
+//
+// This replaced an earlier per-reader-chunk checkpoint that only checked
+// `pending.length >= MAX_INFLIGHT_PUTS` AFTER an entire reader chunk had already been
+// processed — but fflate fires onfile/ondata synchronously, so every file that
+// completed within that one chunk had ALREADY had its putAsset call started (and its
+// buffer held live) before the check ever ran, and the subsequent `Promise.all(pending)`
+// then awaited all of them concurrently rather than actually limiting concurrency to
+// MAX_INFLIGHT_PUTS. Measured (web/measure-ingest-memory.mjs, 3 runs each, ~320MB
+// synthetic zip, performance.memory.usedJSHeapSize peak — Chromium-only, coarse/
+// GC-dependent, a DIRECTIONAL check not a precise allocator readout): BEFORE this
+// change (per-reader-chunk checkpoint) 147.6 / 149.1 / 156.8 MB; AFTER (this file's
+// true bounded-concurrency queue) 129.1 / 137.6 / 144.9 MB — roughly a 9-10% peak
+// reduction on this synthetic payload (large ~0.4-2MB synthetic entries, comparable in
+// size to a reader chunk; real Theme Hospital data has many more small files, where the
+// per-reader-chunk burst this fix closes would be more pronounced). vs ~270MB fully
+// unbounded pre-M3-Task-5 — see docs/superpowers/reports/m3-ingest-memory.md.
 export const MAX_INFLIGHT_PUTS = 8;
 
-// Streaming zip ingest: file bytes are assembled one at a time and handed to IndexedDB,
-// with putAsset writes drained in batches at each reader-chunk boundary (see
-// MAX_INFLIGHT_PUTS above) rather than only once at the very end.
+// Bounded-concurrency work queue, generic over the async write function so it's unit-
+// testable without IndexedDB (see onboarding.test.ts) — ingestZip below wires it to
+// putAsset. fflate's onfile/ondata callbacks are synchronous (and may fire for several
+// completed files within a single reader chunk), so we can't `await` a drain from
+// inside them — instead, a completed item is queued here and a pump loop starts at most
+// `limit` writes at a time; anything beyond that waits in `queue` (still memory, but now
+// a hard cap instead of an unbounded per-chunk burst). `whenBelow` additionally lets the
+// reader loop await queue capacity before requesting the next chunk, so backlog can't
+// grow across chunk boundaries either.
+export class BoundedQueue<T> {
+  private queue: T[] = [];
+  private inflight = 0;
+  private waiters: (() => void)[] = [];
+  private completed = 0;
+  firstError: unknown;
+  get count(): number { return this.completed; }
+
+  constructor(
+    private readonly limit: number,
+    private readonly write: (item: T) => Promise<void>,
+    private readonly onProgress: (done: number) => void,
+  ) {}
+
+  push(item: T): void {
+    this.queue.push(item);
+    this.pump();
+  }
+
+  private pump(): void {
+    while (this.inflight < this.limit && this.queue.length > 0) {
+      const item = this.queue.shift()!;
+      this.inflight++;
+      this.write(item)
+        .then(() => this.onProgress(++this.completed))
+        .catch((e) => { this.firstError = this.firstError ?? e; })
+        .finally(() => { this.inflight--; this.pump(); this.notify(); });
+    }
+  }
+
+  private notify(): void {
+    for (const w of [...this.waiters]) w();
+  }
+
+  // Resolves once (queued + in-flight) drops below `bound`, or immediately if an error
+  // has already occurred (so a stuck-open wait can't mask/deadlock past a failure).
+  whenBelow(bound: number): Promise<void> {
+    const size = () => this.queue.length + this.inflight;
+    if (this.firstError || size() < bound) return Promise.resolve();
+    return new Promise((resolve) => {
+      const check = () => {
+        if (!this.firstError && size() >= bound) return;
+        const i = this.waiters.indexOf(check);
+        if (i !== -1) this.waiters.splice(i, 1);
+        resolve();
+      };
+      this.waiters.push(check);
+    });
+  }
+}
+
+// Streaming zip ingest: file bytes are assembled one at a time and handed to a bounded
+// concurrency queue (BoundedQueue, see above) so at most MAX_INFLIGHT_PUTS putAsset
+// writes are ever in flight — true per-file backpressure, not just a per-reader-chunk
+// checkpoint.
 export async function ingestZip(file: File, onProgress: (done: number) => void): Promise<void> {
-  let count = 0;
   const unzip = new Unzip();
   unzip.register(UnzipInflate);
-  let pending: Promise<void>[] = [];
+  const puts = new BoundedQueue<{ path: string; data: Uint8Array }>(
+    MAX_INFLIGHT_PUTS,
+    (item) => putAsset(item.path, item.data),
+    onProgress,
+  );
   unzip.onfile = (f) => {
     const norm = normalizeAssetPath(f.name);
     if (!norm) return;
@@ -126,20 +202,22 @@ export async function ingestZip(file: File, onProgress: (done: number) => void):
         let o = 0;
         for (const c of chunks) { total.set(c, o); o += c.length; }
         chunks.length = 0;
-        pending.push(putAsset(norm, total).then(() => { onProgress(++count); }));
+        puts.push({ path: norm, data: total });
       }
     };
     f.start();
   };
   const reader = file.stream().getReader();
   for (;;) {
+    if (puts.firstError) throw puts.firstError;
+    await puts.whenBelow(MAX_INFLIGHT_PUTS);
     const { done, value } = await reader.read();
     if (done) { unzip.push(new Uint8Array(0), true); break; }
     unzip.push(value, false);
-    if (pending.length >= MAX_INFLIGHT_PUTS) { await Promise.all(pending); pending = []; }
   }
-  await Promise.all(pending);
-  await finishIngest(count);
+  await puts.whenBelow(1); // full drain: nothing queued, nothing in flight
+  if (puts.firstError) throw puts.firstError;
+  await finishIngest(puts.count);
 }
 
 async function walkEntry(entry: FileSystemEntry, prefix: string, out: { path: string; file: () => Promise<File> }[]): Promise<void> {
