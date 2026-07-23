@@ -1,7 +1,7 @@
 {
   "name": "xmidi-render-kit",
   "version": "0.1.0",
-  "description": "Game-agnostic XMIDI (.xmi) -> MIDI -> PCM -> OGG/WAV render toolkit. Convert Miles Sound System XMIDI music to standard MIDI, render it with a GM SoundFont, and encode the result — in Node, browsers, or Workers.",
+  "description": "Game-agnostic XMIDI (.xmi) -> MIDI -> PCM -> OGG/WAV render toolkit. Convert Miles Sound System XMIDI music to standard MIDI, render it with a GM SoundFont, and encode the result \u2014 in Node, browsers, or Workers.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -50,5 +50,6 @@
     "audio",
     "corsixth",
     "theme-hospital"
-  ]
+  ],
+  "private": true
 }
