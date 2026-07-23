@@ -7,7 +7,7 @@ const OUT = TESTS ? 'dist-test' : 'dist';
 mkdirSync(OUT, { recursive: true });
 
 if (TESTS) {
-  await build({ entryPoints: ['src/onboarding.test.ts', 'src/xmi2mid.test.ts', 'src/wav.test.ts', 'src/fs-setup.test.ts'],
+  await build({ entryPoints: ['src/onboarding.test.ts', 'src/xmi2mid.test.ts', 'src/wav.test.ts', 'src/fs-setup.test.ts', 'src/music-orchestrator.test.ts'],
     bundle: true, format: 'esm', outdir: OUT, platform: 'node', external: ['node:test', 'node:assert'] });
   process.exit(0);
 }

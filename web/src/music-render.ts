@@ -1,6 +1,19 @@
 // Lazy-loaded music renderer: XMI -> MID -> PCM -> OGG (Vorbis, primary) / WAV (fallback),
-// all client-side, during ingest. Built as a separate IIFE bundle (dist/music-render.js)
-// and injected on demand so the synth + its weight never load on the initial page.
+// all client-side. Built as a separate IIFE bundle (dist/music-render.js) so the synth +
+// its weight never load on the initial page.
+//
+// DUAL-MODE (M3+ worker offload): this exact bundle runs in TWO different contexts,
+// detected at load time via isWorkerContext below:
+//  - Worker mode (preferred): music-orchestrator.ts constructs `new Worker
+//    ('music-render.js')`, keeping the ~3s/track synth+encode work off the main thread
+//    entirely (previously a real, user-visible freeze per track). The worker fetches
+//    its own soundfont copy (cached per worker instance) and answers postMessage
+//    'render' requests — see the isWorkerContext branch at the bottom of this file.
+//  - Same-thread fallback: if `new Worker(...)` throws (restrictive CSP, very old
+//    browser) or errors before ever answering a request, music-orchestrator.ts loads
+//    this SAME bundle via a <script> tag instead (as the pre-worker code always did)
+//    and calls the plain global function directly — synchronous, blocking, but
+//    zero-risk and functionally identical to worker mode.
 //
 // AMENDED (sponsor size question, docs/superpowers/m3 plan amendment 2026-07-23): OGG
 // Vorbis is the primary output — the mixer build already decodes it
@@ -22,27 +35,26 @@ const SAMPLE_RATE = 22050;
 // (actual ~2.9MB/track at the demo tracks' real ~3.5min length, still a ~10x WAV saving).
 const VBR_QUALITY = 3;
 
-// De-interleave synth.ts's interleaved Float32 PCM into one Float32Array per channel —
-// the shape wasm-media-encoders' encode() expects.
-function deinterleave(pcm: Float32Array, channels: number): Float32Array[] {
-  const frames = Math.floor(pcm.length / channels);
-  const out: Float32Array[] = [];
-  for (let c = 0; c < channels; c++) out.push(new Float32Array(frames));
-  for (let i = 0; i < frames; i++) {
-    for (let c = 0; c < channels; c++) out[c][i] = pcm[i * channels + c];
+// Interleave synth.ts's planar { left, right } PCM into the single Float32Array
+// encodeWav's contract requires. Only the WAV fallback path needs this — encodeOgg
+// below hands the encoder planar channels directly, its native shape.
+function interleave(left: Float32Array, right: Float32Array): Float32Array {
+  const out = new Float32Array(left.length * 2);
+  for (let i = 0; i < left.length; i++) {
+    out[i * 2] = left[i];
+    out[i * 2 + 1] = right[i];
   }
   return out;
 }
 
-async function encodeOgg(pcm: Float32Array, sampleRate: number, channels: number): Promise<Uint8Array> {
+async function encodeOgg(left: Float32Array, right: Float32Array, sampleRate: number): Promise<Uint8Array> {
   const encoder = await createOggEncoder();
-  encoder.configure({ sampleRate, channels: channels as 1 | 2, vbrQuality: VBR_QUALITY });
-  const chans = deinterleave(pcm, channels);
+  encoder.configure({ sampleRate, channels: 2, vbrQuality: VBR_QUALITY });
   const chunks: Uint8Array[] = [];
   // encode()'s returned buffer is owned by the encoder and must be copied (README) —
   // .slice() does that. A single encode() call for the whole track is well within what
   // the spike's functional test already exercised (full-track PCM -> real Ogg files).
-  const enc = encoder.encode(chans);
+  const enc = encoder.encode([left, right]);
   if (enc.length) chunks.push(enc.slice());
   const tail = encoder.finalize();
   if (tail.length) chunks.push(tail.slice());
@@ -59,15 +71,69 @@ async function renderXmiToAudio(
 ): Promise<{ bytes: Uint8Array; ext: 'OGG' | 'WAV' }> {
   const mid = transcodeXmiToMid(xmi);
   if (!mid) throw new Error('XMI transcode failed');
-  const { pcm, channels } = await renderMidiToPcm(mid, soundfont, SAMPLE_RATE);
+  const { left, right } = await renderMidiToPcm(mid, soundfont, SAMPLE_RATE);
   try {
-    const bytes = await encodeOgg(pcm, SAMPLE_RATE, channels);
+    const bytes = await encodeOgg(left, right, SAMPLE_RATE);
     if (bytes.length === 0) throw new Error('encoder produced zero bytes');
     return { bytes, ext: 'OGG' };
   } catch (e) {
     console.warn('[music-render] OGG encode failed, falling back to WAV:', e);
-    return { bytes: encodeWav(pcm, SAMPLE_RATE, channels), ext: 'WAV' };
+    return { bytes: encodeWav(interleave(left, right), SAMPLE_RATE, 2), ext: 'WAV' };
   }
 }
 
-(self as unknown as { __corsixthRenderMusic: unknown }).__corsixthRenderMusic = { renderXmiToAudio };
+// Worker-mode message protocol. Kept minimal: the worker fetches+caches its own
+// soundfont copy internally (see getSoundfont below), so 'render' requests only ever
+// need to carry the XMI bytes — no 'init' handshake, no soundfont round-trip through
+// postMessage (that would structured-clone ~20MB on every worker (re)start for no
+// benefit over the worker just fetching it directly, same-origin, same as main thread).
+interface RenderRequest { type: 'render'; id: string; xmi: Uint8Array }
+type RenderResponse =
+  | { type: 'result'; id: string; ok: true; bytes: Uint8Array; ext: 'OGG' | 'WAV' }
+  | { type: 'result'; id: string; ok: false; error: string };
+
+// tsconfig's lib is ["ES2022","DOM","DOM.Iterable"] (no "webworker" — see tsconfig.json)
+// project-wide, so `self` types as Window, whose postMessage/onmessage shape doesn't
+// match DedicatedWorkerGlobalScope's. Cast narrowly, only for this worker-only branch.
+interface WorkerCtx {
+  postMessage(message: unknown, transfer?: Transferable[]): void;
+  onmessage: ((ev: MessageEvent<RenderRequest>) => void) | null;
+  importScripts?: (...urls: string[]) => void;
+}
+
+// importScripts exists ONLY on WorkerGlobalScope (dedicated/shared workers), never on
+// window — a reliable same-bundle context detector without needing the webworker lib.
+const isWorkerContext = typeof (self as unknown as WorkerCtx).importScripts === 'function';
+
+if (isWorkerContext) {
+  const ctx = self as unknown as WorkerCtx;
+  let soundfontPromise: Promise<Uint8Array> | undefined;
+  function getSoundfont(): Promise<Uint8Array> {
+    if (!soundfontPromise) {
+      // Relative fetch resolves against the worker's own location (this script's URL,
+      // same directory as index.html/FluidR3.sf3 in dist/) — identical to how the main
+      // thread fetches it in the same-thread fallback path.
+      soundfontPromise = fetch('FluidR3.sf3').then(async (res) => {
+        if (!res.ok) throw new Error(`soundfont fetch ${res.status}`);
+        return new Uint8Array(await res.arrayBuffer());
+      }).catch((e) => { soundfontPromise = undefined; throw e; }); // don't cache a failure
+    }
+    return soundfontPromise;
+  }
+  ctx.onmessage = (ev) => {
+    const msg = ev.data;
+    if (msg.type !== 'render') return;
+    getSoundfont()
+      .then((sf) => renderXmiToAudio(msg.xmi, sf))
+      .then(({ bytes, ext }) => {
+        const resp: RenderResponse = { type: 'result', id: msg.id, ok: true, bytes, ext };
+        ctx.postMessage(resp, [bytes.buffer]); // zero-copy transfer back — worker never reuses `bytes`
+      })
+      .catch((e) => {
+        const resp: RenderResponse = { type: 'result', id: msg.id, ok: false, error: String(e instanceof Error ? e.message : e) };
+        ctx.postMessage(resp);
+      });
+  };
+} else {
+  (self as unknown as { __corsixthRenderMusic: unknown }).__corsixthRenderMusic = { renderXmiToAudio };
+}
