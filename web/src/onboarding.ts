@@ -180,14 +180,15 @@ export function showOnboarding(): void {
   const root = document.getElementById('overlay-content')!;
   root.innerHTML = `
     <h1>CorsixTH Web</h1>
-    <p>Theme Hospital in your browser. The engine is free & open source — the game data is not included.</p>
-    <p><a class="button" href="${DEMO_URL}" download>1&#41; Download the free demo (12&nbsp;MB, archive.org)</a></p>
+    <p class="lede">Theme Hospital in your browser. The engine is free &amp; open source — the game data is not included.</p>
+    <p><a class="button" href="${DEMO_URL}" download><span class="step-num">1</span> Download the free demo <small>12&nbsp;MB, from archive.org</small></a></p>
     <div id="drop-zone">
-      <p><strong>2&#41; Drop the downloaded HOSP.zip here</strong><br>— or drop your own GOG/CD Theme Hospital folder —</p>
+      <span class="drop-icon" aria-hidden="true">📥</span>
+      <p><span class="step-num">2</span><strong>Drop the downloaded HOSP.zip here</strong><br>— or drop your own GOG/CD Theme Hospital folder —</p>
       <progress id="ingest-progress" class="hidden" max="100"></progress>
       <p id="ingest-status"></p>
     </div>
-    <p style="font-size:.8rem;opacity:.7">The demo was freely distributed by Bullfrog/EA in 1997 to promote the game.
+    <p class="fine-print">The demo was freely distributed by Bullfrog/EA in 1997 to promote the game.
     It downloads directly from archive.org to your browser — this site never serves game data.
     Your files stay in your browser's local storage.</p>`;
   const zone = document.getElementById('drop-zone')!;

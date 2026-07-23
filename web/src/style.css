@@ -1,11 +1,238 @@
-html, body { margin: 0; height: 100%; background: #101418; color: #e8e4d8; font-family: system-ui, sans-serif; }
+/* CorsixTH Web — original TH-main-menu homage: warm teal/blue sky, carved stone/marble
+   panel, chunky warm-gold display lettering, a subtle hospital-cross seal. Every visual
+   here is CSS gradients/shadows/shapes generated for this project — no traced or reused
+   EA/Bullfrog art, sprites, fonts, or logos. System/rounded font stack only (no font
+   CDN). Single committed look regardless of OS light/dark preference — this is a game
+   landing page, not a document, so we intentionally do not branch on
+   prefers-color-scheme (see task-7-report.md for the rationale).
+*/
+
+:root {
+  --sky-top: #0a4a5e;
+  --sky-mid: #1f93a8;
+  --sky-glow: #f3c778;
+  --stone-light: #f1e6c9;
+  --stone-mid: #dcc59a;
+  --stone-dark: #b89a68;
+  --stone-frame: #6a4a2c;
+  --gold: #f2b429;
+  --gold-dark: #8a5a1d;
+  --ink: #3c2c19;
+  --ink-soft: #6b5636;
+  --brick: #c1502b;
+  --brick-dark: #7a2c10;
+  --cross-red: #c1392b;
+  --cross-cream: #fdf6e3;
+  --warn-amber: #f0b400;
+  --warn-amber-dark: #a8720a;
+  color-scheme: light;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--sky-top);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
 #canvas { display: block; margin: 0 auto; height: 100%; }
-#overlay { position: fixed; inset: 0; background: #101418; display: flex; align-items: center; justify-content: center; text-align: center; }
+
+/* --- Sky backdrop: warm teal/blue gradient with a few soft cloud puffs, all CSS. --- */
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(ellipse 240px 90px, rgba(255,255,255,.32), transparent 70%),
+    radial-gradient(ellipse 280px 100px, rgba(255,255,255,.24), transparent 70%),
+    radial-gradient(ellipse 220px 80px, rgba(255,255,255,.16), transparent 70%),
+    radial-gradient(ellipse 200px 70px, rgba(255,255,255,.12), transparent 70%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sky-glow) 130%);
+  background-position: 14% 18%, 84% 12%, 68% 32%, 30% 78%, 0 0;
+  animation: cloud-drift 90s ease-in-out infinite;
+}
+/* Barely-there cloud drift — a nod to the TH menu's animated sky, kept slow and subtle
+   so it reads as ambience rather than a distraction. */
+@keyframes cloud-drift {
+  0%, 100% { background-position: 14% 18%, 84% 12%, 68% 32%, 30% 78%, 0 0; }
+  50% { background-position: 19% 15%, 79% 15%, 73% 29%, 25% 81%, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #overlay { animation: none; }
+}
 #overlay.hidden, .hidden { display: none !important; }
-#overlay-content { max-width: 34rem; padding: 1.5rem; }
-#save-banner { position: fixed; top: 0; left: 0; right: 0; background: #7a1f1f; color: #fff; padding: .5rem 1rem; text-align: center; z-index: 10; }
-button, .button { background: #2f6f4f; color: #fff; border: 0; border-radius: .4rem; padding: .7rem 1.2rem; font-size: 1rem; cursor: pointer; text-decoration: none; display: inline-block; margin: .4rem; }
-#drop-zone { border: 2px dashed #4a5568; border-radius: .6rem; padding: 2rem; margin-top: 1rem; }
-#drop-zone.drag { border-color: #2f6f4f; background: #16202a; }
-progress { width: 100%; }
-.error { color: #ff8080; }
+
+/* --- Stone/marble plaque framing whatever the shell puts inside it. --- */
+#overlay-content {
+  position: relative;
+  width: min(36rem, 100%);
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 2rem 2.25rem 1.75rem;
+  border-radius: 20px;
+  background:
+    repeating-linear-gradient(115deg, rgba(255,255,255,.06) 0 3px, transparent 3px 10px),
+    repeating-linear-gradient(25deg, rgba(0,0,0,.035) 0 2px, transparent 2px 11px),
+    radial-gradient(ellipse at 20% 0%, rgba(255,255,255,.35), transparent 55%),
+    linear-gradient(160deg, var(--stone-light) 0%, var(--stone-mid) 48%, var(--stone-dark) 100%);
+  box-shadow:
+    0 0 0 4px var(--gold-dark),
+    0 0 0 9px var(--stone-frame),
+    0 22px 45px -10px rgba(0,0,0,.5),
+    inset 0 2px 0 rgba(255,255,255,.5),
+    inset 0 -5px 12px rgba(0,0,0,.22);
+  line-height: 1.55;
+}
+
+/* Subtle hospital-cross seal — a plain plus-in-a-circle, drawn with layered CSS
+   backgrounds (no image asset). A generic medical symbol, not any specific TH/EA mark. */
+#overlay-content::before {
+  content: "";
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  transform: rotate(-10deg);
+  background:
+    linear-gradient(var(--cross-red) 0 0) center / 32% 62% no-repeat,
+    linear-gradient(var(--cross-red) 0 0) center / 62% 32% no-repeat,
+    var(--cross-cream);
+  box-shadow: 0 0 0 3px var(--gold-dark), 0 6px 14px rgba(0,0,0,.4);
+  pointer-events: none;
+}
+
+#overlay-content h1 {
+  margin: 0 0 .5rem;
+  font-family: ui-rounded, "SF Pro Rounded", "Baloo 2", "Segoe UI", system-ui, sans-serif;
+  font-weight: 900;
+  font-size: clamp(1.7rem, 6vw, 2.85rem);
+  letter-spacing: .01em;
+  color: var(--gold);
+  -webkit-text-stroke: 1.25px var(--gold-dark);
+  text-shadow: 0 3px 0 var(--gold-dark), 0 8px 14px rgba(0,0,0,.35);
+}
+
+#overlay-content p { margin: .6rem 0; font-size: clamp(.95rem, 2.6vw, 1.08rem); }
+#overlay-content .lede { color: var(--ink-soft); }
+#overlay-content .fine-print { font-size: .8rem; color: var(--ink-soft); opacity: .85; margin-top: 1.1rem; }
+#overlay-content #overlay-status { font-weight: 600; }
+
+/* --- Buttons: chunky, playful, pressable — a signboard, not a corporate pill. --- */
+button, .button {
+  background: linear-gradient(180deg, var(--brick) 0%, var(--brick-dark) 100%);
+  color: #fff6e4;
+  border: 0;
+  border-radius: .9rem;
+  padding: .8rem 1.3rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  margin: .5rem 0;
+  box-shadow: 0 4px 0 var(--brick-dark), 0 10px 18px -6px rgba(0,0,0,.45);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+button:hover, .button:hover { transform: translateY(-2px); box-shadow: 0 6px 0 var(--brick-dark), 0 14px 22px -6px rgba(0,0,0,.5); }
+button:active, .button:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--brick-dark), 0 4px 10px -4px rgba(0,0,0,.4); }
+.button .step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  margin-right: .4em;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 900;
+  vertical-align: -.35em;
+}
+.button small { display: block; font-weight: 500; opacity: .85; font-size: .78em; margin-top: .1em; }
+
+/* --- Drop zone: an inset parchment tray, gold on hover/drag. --- */
+#drop-zone {
+  border: 3px dashed var(--gold-dark);
+  border-radius: .9rem;
+  padding: 1.6rem 1.2rem;
+  margin-top: 1.1rem;
+  background: rgba(255,255,255,.28);
+  transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+#drop-zone .drop-icon { display: block; font-size: 2rem; margin-bottom: .3rem; }
+#drop-zone .step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--ink);
+  font-weight: 900;
+  vertical-align: -.3em;
+  margin-right: .35em;
+}
+#drop-zone.drag {
+  border-color: var(--gold);
+  border-style: solid;
+  background: rgba(242,180,41,.28);
+  transform: scale(1.015);
+  box-shadow: 0 0 0 4px rgba(242,180,41,.25);
+}
+
+progress {
+  width: 100%;
+  height: 14px;
+  border-radius: 8px;
+  border: 0;
+  margin-top: .6rem;
+  overflow: hidden;
+}
+progress::-webkit-progress-bar { background: rgba(0,0,0,.14); border-radius: 8px; }
+progress::-webkit-progress-value { background: linear-gradient(90deg, var(--gold), #ffdf8a); border-radius: 8px; transition: width .25s ease; }
+progress::-moz-progress-bar { background: linear-gradient(90deg, var(--gold), #ffdf8a); border-radius: 8px; }
+/* Indeterminate (no [value] — reading files / rendering music): an animated gold
+   barber-pole instead of the browser's flat default, so "still working" reads clearly. */
+@keyframes progress-stripes { to { background-position: 28px 0; } }
+progress:indeterminate::-webkit-progress-bar {
+  background:
+    repeating-linear-gradient(45deg, var(--gold) 0 7px, #ffdf8a 7px 14px);
+  background-size: 28px 14px;
+  animation: progress-stripes .7s linear infinite;
+}
+progress:indeterminate { background-image: repeating-linear-gradient(45deg, var(--gold) 0 7px, #ffdf8a 7px 14px); background-size: 28px 14px; animation: progress-stripes .7s linear infinite; }
+
+#ingest-status { min-height: 1.3em; word-wrap: break-word; }
+.error { color: #a3271f; font-weight: 700; }
+
+/* --- Save banner: a clear but calmer warning — amber, not alarm-red. --- */
+#save-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+  background: linear-gradient(180deg, var(--warn-amber) 0%, var(--warn-amber-dark) 100%);
+  color: #3a2604;
+  padding: .55rem 1rem;
+  text-align: center;
+  font-weight: 700;
+  border-bottom: 3px solid var(--gold-dark);
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+}
+
+@media (max-width: 480px) {
+  #overlay { padding: .75rem; }
+  #overlay-content { padding: 1.5rem 1.1rem 1.35rem; border-radius: 16px; }
+  #overlay-content::before { width: 40px; height: 40px; top: -14px; right: -14px; }
+  button, .button { display: block; width: 100%; box-sizing: border-box; text-align: center; }
+}
