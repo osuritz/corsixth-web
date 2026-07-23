@@ -856,6 +856,7 @@ function App:dumpStrings()
     fi:write("\n")
   end
   fi:close()
+  TH.SyncEmscriptenFS()
 
   local function dump_by_line(file, obj, prefix)
     for n, o in pairs(obj) do
@@ -899,10 +900,12 @@ function App:dumpStrings()
   fi = assert(io.open(dir .. "debug-strings-new-lines.txt", "w"))
   dump_by_line(fi, _S, "")
   fi:close()
+  TH.SyncEmscriptenFS()
 
   fi = assert(io.open(dir .. "debug-strings-new-grouped.txt", "w"))
   dump_grouped(fi, _S, "")
   fi:close()
+  TH.SyncEmscriptenFS()
 
   self:checkMissingStringsInLanguage(dir, self.config.language)
   -- Uncomment these lines to get diffs for all languages in the game
@@ -981,6 +984,7 @@ function App:checkMissingStringsInLanguage(dir, language)
     fi:write("------------------------------------\n")
     dump_diff(fi, str_cur, str_en, "")
     fi:close()
+    TH.SyncEmscriptenFS()
   end
 end
 
