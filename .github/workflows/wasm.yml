@@ -54,6 +54,9 @@ jobs:
     permissions:
       pages: write
       id-token: write
+    # NOTE: the github-pages environment must allow branch "wasm" — recreating the
+    # environment resets it to default-branch-only; re-add via:
+    # gh api repos/OWNER/REPO/environments/github-pages/deployment-branch-policies -X POST -f name=wasm
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
