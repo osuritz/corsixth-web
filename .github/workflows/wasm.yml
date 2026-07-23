@@ -29,3 +29,20 @@ jobs:
             build-wasm/**/corsix-th.js
             build-wasm/**/corsix-th.wasm
             build-wasm/**/corsix-th.data
+
+  boot-smoke:
+    needs: build
+    runs-on: ubuntu-latest   # bare runner: system Chrome preinstalled; NOT the emsdk container
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: corsixth-wasm
+          path: build-wasm/
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install puppeteer-core
+        run: cd web && npm ci
+      - name: Headless boot smoke test
+        run: cd web && node boot-smoke.mjs
+        env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
