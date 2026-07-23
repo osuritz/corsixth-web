@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-07-23T17:20:36.221Z",
+  "generatedAt": "2026-07-23T22:58:21.786Z",
   "samples": {
-    "rafGaps": 1792,
+    "rafGaps": 1802,
     "longtasks": 0
   },
-  "rafGapP95Ms": 18.1,
+  "rafGapP95Ms": 18.3,
   "longtaskP95Ms": 0,
   "longtaskFrameOverlapPct": 0,
   "thresholds": {

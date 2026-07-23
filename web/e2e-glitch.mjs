@@ -44,7 +44,7 @@
 //   machinery this harness already uses was reused for the capture pass itself).
 import puppeteer from 'puppeteer-core';
 import { spawn, execSync } from 'node:child_process';
-import { existsSync, copyFileSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { existsSync, copyFileSync, readFileSync, writeFileSync, rmSync, mkdirSync, statSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -83,7 +83,52 @@ const RECEPTIONIST_CATEGORY_FRAC = { fx: 0.1764, fy: 0.5333 }; // bottom-left st
 const HIRE_CONFIRM_FRAC = { fx: 0.3056, fy: 0.5542 };  // envelope ("hire this candidate") icon
 const PLACE_RECEPTIONIST_FRAC = HIRE_CONFIRM_FRAC;     // same click-twice pattern as the desk: confirm, then place at the same screen spot (she then autonomously walks to the desk)
 
-const PROFILE_DIR = join(tmpdir(), 'corsixth-glitch-e2e-chrome-profile');
+// Parameterized (GLITCH_PROFILE_DIR) so a long-running session can use a dedicated
+// profile dir instead of the one shared by day-to-day short chunked runs — the shared
+// dir is also used by parallel-lane contention scenarios (multiple lanes/worktrees
+// running e2e harnesses concurrently against ports/profiles), and userDataDir is an
+// exclusive Chrome lock for the whole browser lifetime, so a 30-45min long session
+// would lock other lanes out of the shared profile for its entire duration. Default
+// preserves prior behavior exactly (same fixed path) when the env var is unset.
+const PROFILE_DIR = process.env.GLITCH_PROFILE_DIR
+  ? resolve(process.env.GLITCH_PROFILE_DIR)
+  : join(tmpdir(), 'corsixth-glitch-e2e-chrome-profile');
+const PROFILE_DIR_CAP_BYTES = 1_000_000_000; // 1GB
+
+// Recursively sum file sizes under `dir`; best-effort (a file racing Chrome's own
+// profile housekeeping is simply skipped, not fatal — this is a disk-hygiene safety
+// valve, not a correctness check).
+function dirSizeBytes(dir) {
+  let total = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let names;
+    try { names = readdirSync(d); } catch { continue; }
+    for (const n of names) {
+      const p = join(d, n);
+      let st;
+      try { st = statSync(p); } catch { continue; }
+      if (st.isDirectory()) stack.push(p);
+      else total += st.size;
+    }
+  }
+  return total;
+}
+
+// Unbounded profile growth across chunks is the deliberate default (see header note:
+// we WANT the demo assets to persist to skip re-ingest) but not infinite — cap it so a
+// long-lived dev machine doesn't accumulate Chrome profile data forever. Pruning costs
+// the NEXT run a re-ingest + one-time cold-start pass (self-healing), which is an
+// acceptable trade for a safety valve that should rarely trigger.
+function pruneProfileDirIfOversized(dir, capBytes) {
+  if (!existsSync(dir)) return;
+  const sizeBytes = dirSizeBytes(dir);
+  if (sizeBytes > capBytes) {
+    console.log(`[glitch] PROFILE_DIR ${dir} is ${(sizeBytes / 1e9).toFixed(2)}GB (cap ${(capBytes / 1e9).toFixed(1)}GB) — pruning before this run (next run re-ingests + re-warms)`);
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -121,7 +166,8 @@ if (!existsSync(join(DIST, 'corsix-th.js'))) { console.error('FAIL: build dist/ 
 const state = loadState();
 const report = loadReport();
 const chunkIndex = state.chunkIndex ?? 0;
-console.log(`[glitch] chunk ${chunkIndex} starting; CHUNK_MS=${CHUNK_MS} SHOT_INTERVAL_MS=${SHOT_INTERVAL_MS}`);
+console.log(`[glitch] chunk ${chunkIndex} starting; CHUNK_MS=${CHUNK_MS} SHOT_INTERVAL_MS=${SHOT_INTERVAL_MS}; PROFILE_DIR=${PROFILE_DIR}`);
+pruneProfileDirIfOversized(PROFILE_DIR, PROFILE_DIR_CAP_BYTES);
 
 const server = spawn('python3', ['-m', 'http.server', String(PORT), '--directory', DIST], { stdio: 'ignore' });
 const transcript = [];
