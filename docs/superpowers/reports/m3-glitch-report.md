@@ -55,6 +55,15 @@ time (via `performance.memory`, logged per chunk in the JSON) — nowhere near t
 128MB `-sINITIAL_MEMORY` ceiling that would need to be crossed before the first
 32MB `-sMEMORY_GROWTH_LINEAR_STEP` growth event could even occur.
 
+> **Update (post-review):** at the time chunks 0–3 ran, "zero heap-growth events"
+> was **instrument unproven at the time** — nothing forced a real `grow()` call to
+> confirm the `WebAssembly.Memory.prototype.grow` patch actually fired, so "0
+> events" was indistinguishable from "the hook never engaged." The harness now
+> self-validates the hook every session (see "Instrumentation self-validation
+> follow-up" below), and the **re-validated instrument shows the same flat-memory
+> behavior in the validation chunk** — i.e., this finding stands, but it is now
+> backed by a proven-live instrument rather than an unverified one.
+
 **Finding 2 — this demo build/level does not spawn patients without a functioning
 diagnosis room.** This is the most actionable result of this task. A Reception Desk
 alone (Task 4's originally-planned setup) produced **zero patient visitors** over ~1
@@ -74,6 +83,46 @@ while"). Building a GP's Office requires room-boundary drawing (a drag/multi-cli
 wall-placement UI, not a single-click object placement like the desk/receptionist),
 which is a materially larger and untested automation surface — reasonably out of
 scope for this bounded-effort task per "no milestone-burning open-ended bisect."
+
+## Instrumentation self-validation follow-up
+
+The M3 Task 4 reviewer flagged two Important gaps in the original harness
+(`web/e2e-glitch.mjs`), both now fixed:
+
+1. **Hook never self-validated.** Nothing proved the `WebAssembly.Memory.prototype.grow`
+   patch actually fired — "0 events" was unverifiable, indistinguishable from the
+   hook silently never engaging. **Fix:** immediately after boot, once per session,
+   the harness now forces a real `new WebAssembly.Memory({initial:1}).grow(1)` call
+   in-page, tags that event `{selfTest: true}`, and hard-asserts exactly one such
+   event was logged — aborting loudly (non-zero exit, no data collected) if not.
+2. **Two uncorrelated clocks.** Heap-growth events were timestamped with the page's
+   `performance.now()`; screenshots were timestamped with the Node process's
+   `Date.now() - chunkStart`, with no recorded relationship between the two clocks —
+   correlating a heap event to a screenshot was impossible. **Fix:** at the start of
+   each chunk's monitoring loop, a single in-page `evaluate()` call now captures
+   `{ chunkStartEpochMs: Date.now(), chunkStartPerfMs: performance.now() }` at the
+   same instant and records it as `chunkStartAnchor` in that chunk's JSON record,
+   giving a common reference point to convert any `heapGrowthEvents[].tMs` into the
+   same wall-clock frame as `screenshots[].tMs`.
+
+**Re-validation run (chunk 4, ~2.5 min bounded chunk, appended to
+`m3-glitch-heap-events.json`):**
+
+- Self-test **PASSED**: `{"tMs":512,"deltaPages":1,"beforeBytes":65536,"afterBytes":131072,"selfTest":true}`
+  — proving the grow-hook is live and captures real `grow()` calls correctly.
+- `chunkStartAnchor` present: `{"chunkStartEpochMs":1784822903193,"chunkStartPerfMs":19649.4}`.
+- Aside from the forced self-test event, **zero** engine-driven growth events
+  occurred during the chunk, and `usedJSHeapSize` stayed flat at **~53.6MB** — in
+  the same range as chunks 0–3 (~51–52MB). The flat-memory finding is unchanged;
+  it is now backed by a hook proven live rather than an unverified one.
+- No visual corruption observed in this chunk's screenshots either (consistent with
+  Finding 1).
+
+Both fixes live in `web/e2e-glitch.mjs`; no changes were made to the CI-green
+`web/e2e-playable.mjs`. Chunk 4's raw screenshots were not added to the committed
+set (kept small per existing convention above) — the validated data lives in the
+JSON's `chunks[4]` record (`selfTestPassed`, `selfTestEvent`, `chunkStartAnchor`,
+`heapGrowthEvents`, `perfMemoryAtEnd`).
 
 ## Heap-growth hypothesis: not testable to a conclusion in this session
 

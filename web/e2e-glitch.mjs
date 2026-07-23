@@ -136,16 +136,24 @@ try {
 
   // Patch BEFORE any navigation so it applies to every document this page loads,
   // including the reload ingestZip triggers on success. See header note.
+  //
+  // `__glitchSelfTestArmed` lets the forced self-test grow() call below (run once
+  // per session, right after boot) tag its own event `{selfTest: true}` so it's
+  // distinguishable from real engine-driven growth events in the emitted JSON,
+  // without changing the shape of ordinary events at all.
   await page.evaluateOnNewDocument(() => {
     window.__glitchHeapEvents = [];
+    window.__glitchSelfTestArmed = false;
     const OrigGrow = WebAssembly.Memory.prototype.grow;
     WebAssembly.Memory.prototype.grow = function (delta) {
       const beforeBytes = this.buffer.byteLength;
       const tMs = Math.round(performance.now());
       const result = OrigGrow.call(this, delta);
       const afterBytes = this.buffer.byteLength;
-      window.__glitchHeapEvents.push({ tMs, deltaPages: delta, beforeBytes, afterBytes });
-      console.log(`[glitch-heap] grow: ${beforeBytes} -> ${afterBytes} bytes @ t=${tMs}ms`);
+      const event = { tMs, deltaPages: delta, beforeBytes, afterBytes };
+      if (window.__glitchSelfTestArmed) event.selfTest = true;
+      window.__glitchHeapEvents.push(event);
+      console.log(`[glitch-heap] grow: ${beforeBytes} -> ${afterBytes} bytes @ t=${tMs}ms${event.selfTest ? ' [selfTest]' : ''}`);
       return result;
     };
   });
@@ -175,6 +183,27 @@ try {
       { timeout: 90_000 }).then(() => true).catch(() => false);
   }
   if (!booted) { console.error('[glitch] FAIL: engine never booted'); await browser.close(); server.kill(); process.exit(1); }
+
+  // --- Self-validate the grow-hook instrumentation (once per session) ---
+  // Nothing above proves the WebAssembly.Memory.prototype.grow patch actually
+  // fires — without this, "0 heap-growth events" at the end of a chunk is
+  // unverifiable: it's indistinguishable from "the hook never engaged". Force one
+  // real grow() call here, tag it `{selfTest: true}` (see patch above), and
+  // hard-abort rather than silently collect data from an unproven instrument.
+  console.log('[glitch] running grow-hook self-test');
+  const selfTestRaw = await page.evaluate(() => {
+    window.__glitchSelfTestArmed = true;
+    const before = window.__glitchHeapEvents.length;
+    new WebAssembly.Memory({ initial: 1 }).grow(1);
+    window.__glitchSelfTestArmed = false;
+    return window.__glitchHeapEvents.slice(before);
+  });
+  const selfTestEvents = selfTestRaw.filter((e) => e.selfTest === true);
+  if (selfTestEvents.length !== 1) {
+    console.error(`[glitch] SELF-TEST FAILED: expected exactly 1 tagged selfTest grow event, observed ${selfTestEvents.length} (raw: ${JSON.stringify(selfTestRaw)}). The grow-hook instrumentation is unproven for this session — aborting rather than report unverifiable heap-event data.`);
+    await browser.close(); server.kill(); process.exit(1);
+  }
+  console.log(`[glitch] SELF-TEST PASSED: grow-hook fired exactly once -> ${JSON.stringify(selfTestEvents[0])}`);
 
   const rect = await page.evaluate(() => {
     const c = document.getElementById('canvas').getBoundingClientRect();
@@ -222,7 +251,20 @@ try {
   // Monitoring loop: screenshot every SHOT_INTERVAL_MS; heap events accumulate in
   // window.__glitchHeapEvents (read in full at the end, not polled incrementally, to
   // keep this loop cheap).
-  const chunkStart = Date.now();
+  //
+  // Clock anchor: heap events are timestamped with the PAGE's `performance.now()`
+  // (monotonic, page-context clock) while screenshots below are timestamped with
+  // `Date.now() - chunkStart` (Node-context wall clock) — two uncorrelated clocks
+  // with no recorded relationship between them. Capture both clocks' readings
+  // in ONE in-page evaluate call, at the same instant, so any heap event's tMs can
+  // be converted to the same wall-clock frame as a screenshot's tMs:
+  //   epochMs(event) = chunkStartAnchor.chunkStartEpochMs
+  //                     + (event.tMs - chunkStartAnchor.chunkStartPerfMs)
+  // `chunkStart` itself is then pinned to that same anchor read (not a separate
+  // Node-side Date.now() call) so screenshots' `Date.now() - chunkStart` and the
+  // anchor share one originating instant.
+  const chunkStartAnchor = await page.evaluate(() => ({ chunkStartEpochMs: Date.now(), chunkStartPerfMs: performance.now() }));
+  const chunkStart = chunkStartAnchor.chunkStartEpochMs;
   const shotPaths = [];
   for (let elapsed = 0; elapsed < CHUNK_MS; elapsed += SHOT_INTERVAL_MS) {
     await new Promise((r) => setTimeout(r, SHOT_INTERVAL_MS));
@@ -252,6 +294,9 @@ try {
   report.chunks.push({
     chunkIndex,
     startedAt: new Date(chunkStart).toISOString(),
+    chunkStartAnchor, // { chunkStartEpochMs, chunkStartPerfMs } — see Monitoring loop note above; correlates heapGrowthEvents[].tMs (page performance.now()) with screenshots[].tMs (Date.now() - chunkStart)
+    selfTestPassed: true, // hard-aborted above if the grow-hook self-test didn't fire exactly once
+    selfTestEvent: selfTestEvents[0],
     chunkMs: CHUNK_MS,
     shotIntervalMs: SHOT_INTERVAL_MS,
     screenshots: shotPaths,
