@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-07-23T11:23:52.165Z",
+  "samples": {
+    "rafGaps": 1801,
+    "longtasks": 0
+  },
+  "rafGapP95Ms": 17.4,
+  "longtaskP95Ms": 0,
+  "longtaskFrameOverlapPct": 0,
+  "thresholds": {
+    "rafGapP95Ms": 33,
+    "longtaskP95Ms": 100,
+    "longtaskFrameOverlapPct": 5
+  },
+  "flags": [],
+  "decision": "PASS — Asyncify latency acceptable; main-loop restructure NOT required in M3."
+}

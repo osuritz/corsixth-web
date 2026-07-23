@@ -47,6 +47,30 @@ jobs:
         run: cd web && node boot-smoke.mjs
         env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
 
+  e2e-playable:
+    needs: build
+    runs-on: ubuntu-latest   # bare runner: system Chrome; NOT the emsdk container
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: corsixth-wasm
+          path: build-wasm/
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build shell
+        run: cd web && npm ci && npm run build
+        env: { ARTIFACTS_DIR: '${{ github.workspace }}/build-wasm' }
+      - name: Playable-slice E2E + latency
+        run: cd web && node e2e-playable.mjs
+      - name: Upload latency verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m3-latency
+          path: docs/superpowers/reports/m3-latency.json
+          if-no-files-found: ignore
+
   deploy-pages:
     if: github.event_name == 'push'
     needs: [build, boot-smoke]

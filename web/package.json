@@ -5,7 +5,8 @@
   "scripts": {
     "build": "node build.mjs",
     "serve": "python3 -m http.server 8124 --directory dist",
-    "test": "node build.mjs --tests && node --test 'dist-test/**/*.js'"
+    "test": "node build.mjs --tests && node --test 'dist-test/**/*.js'",
+    "e2e": "node e2e-playable.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.0",
