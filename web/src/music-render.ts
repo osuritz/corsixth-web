@@ -22,27 +22,26 @@ const SAMPLE_RATE = 22050;
 // (actual ~2.9MB/track at the demo tracks' real ~3.5min length, still a ~10x WAV saving).
 const VBR_QUALITY = 3;
 
-// De-interleave synth.ts's interleaved Float32 PCM into one Float32Array per channel —
-// the shape wasm-media-encoders' encode() expects.
-function deinterleave(pcm: Float32Array, channels: number): Float32Array[] {
-  const frames = Math.floor(pcm.length / channels);
-  const out: Float32Array[] = [];
-  for (let c = 0; c < channels; c++) out.push(new Float32Array(frames));
-  for (let i = 0; i < frames; i++) {
-    for (let c = 0; c < channels; c++) out[c][i] = pcm[i * channels + c];
+// Interleave synth.ts's planar { left, right } PCM into the single Float32Array
+// encodeWav's contract requires. Only the WAV fallback path needs this — encodeOgg
+// below hands the encoder planar channels directly, its native shape.
+function interleave(left: Float32Array, right: Float32Array): Float32Array {
+  const out = new Float32Array(left.length * 2);
+  for (let i = 0; i < left.length; i++) {
+    out[i * 2] = left[i];
+    out[i * 2 + 1] = right[i];
   }
   return out;
 }
 
-async function encodeOgg(pcm: Float32Array, sampleRate: number, channels: number): Promise<Uint8Array> {
+async function encodeOgg(left: Float32Array, right: Float32Array, sampleRate: number): Promise<Uint8Array> {
   const encoder = await createOggEncoder();
-  encoder.configure({ sampleRate, channels: channels as 1 | 2, vbrQuality: VBR_QUALITY });
-  const chans = deinterleave(pcm, channels);
+  encoder.configure({ sampleRate, channels: 2, vbrQuality: VBR_QUALITY });
   const chunks: Uint8Array[] = [];
   // encode()'s returned buffer is owned by the encoder and must be copied (README) —
   // .slice() does that. A single encode() call for the whole track is well within what
   // the spike's functional test already exercised (full-track PCM -> real Ogg files).
-  const enc = encoder.encode(chans);
+  const enc = encoder.encode([left, right]);
   if (enc.length) chunks.push(enc.slice());
   const tail = encoder.finalize();
   if (tail.length) chunks.push(tail.slice());
@@ -59,14 +58,14 @@ async function renderXmiToAudio(
 ): Promise<{ bytes: Uint8Array; ext: 'OGG' | 'WAV' }> {
   const mid = transcodeXmiToMid(xmi);
   if (!mid) throw new Error('XMI transcode failed');
-  const { pcm, channels } = await renderMidiToPcm(mid, soundfont, SAMPLE_RATE);
+  const { left, right } = await renderMidiToPcm(mid, soundfont, SAMPLE_RATE);
   try {
-    const bytes = await encodeOgg(pcm, SAMPLE_RATE, channels);
+    const bytes = await encodeOgg(left, right, SAMPLE_RATE);
     if (bytes.length === 0) throw new Error('encoder produced zero bytes');
     return { bytes, ext: 'OGG' };
   } catch (e) {
     console.warn('[music-render] OGG encode failed, falling back to WAV:', e);
-    return { bytes: encodeWav(pcm, SAMPLE_RATE, channels), ext: 'WAV' };
+    return { bytes: encodeWav(interleave(left, right), SAMPLE_RATE, 2), ext: 'WAV' };
   }
 }
 
