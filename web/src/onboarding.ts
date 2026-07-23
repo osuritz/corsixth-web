@@ -97,14 +97,18 @@ async function finishIngest(count: number): Promise<void> {
   location.reload();
 }
 
-// Cap on putAsset promises in flight at once. Each holds one assembled file buffer alive
-// until IndexedDB commits it, so this bounds ingest peak memory regardless of zip size
-// (GOG installs are hundreds of MB). fflate's onfile/ondata are synchronous, so we drain
-// between reader chunks rather than inside the callbacks.
+// Drain checkpoint: caps putAsset promises accumulated per reader-chunk boundary. Each
+// promise holds one assembled file buffer alive until IndexedDB commits it. NOTE: fflate
+// fires onfile/ondata synchronously within a chunk, so the effective in-flight bound is
+// coarser than MAX_INFLIGHT_PUTS (measured ~110-160MB peak on a 320MB zip vs 270MB
+// unbounded — see docs/superpowers/reports/m3-ingest-memory.md). Per-file backpressure
+// (draining inside ondata's `final` branch instead of per reader chunk) is a known
+// follow-up for a tighter bound.
 export const MAX_INFLIGHT_PUTS = 8;
 
 // Streaming zip ingest: file bytes are assembled one at a time and handed to IndexedDB,
-// with at most MAX_INFLIGHT_PUTS writes (and their buffers) live concurrently.
+// with putAsset writes drained in batches at each reader-chunk boundary (see
+// MAX_INFLIGHT_PUTS above) rather than only once at the very end.
 export async function ingestZip(file: File, onProgress: (done: number) => void): Promise<void> {
   let count = 0;
   const unzip = new Unzip();
