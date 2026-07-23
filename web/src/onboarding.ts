@@ -37,7 +37,13 @@ function loadMusicRenderer(): Promise<MusicRenderer> {
 // Best-effort: on any failure, suppress cleanly and defer (the in-game XMI-decode error
 // is avoided because no XMI reaches the mixer).
 async function renderMusic(onStatus: (msg: string) => void): Promise<void> {
-  const paths = await listAssetPaths();
+  let paths: string[];
+  try {
+    paths = await listAssetPaths();
+  } catch (e) {
+    console.warn('[shell] music render: could not list assets, skipping:', e); // best-effort
+    return;
+  }
   const xmis = paths.filter((p) => /^SOUND\/MIDI\/[^/]+\.XMI$/.test(p));
   if (xmis.length === 0) return;
   let soundfont: Uint8Array;
@@ -66,10 +72,16 @@ async function renderMusic(onStatus: (msg: string) => void): Promise<void> {
     }
   }
   // Preserve track titles: copy any track-list TXT (e.g. MIDIDEM.TXT) into MUSIC/ so
-  // audio.lua's midi_txt detection still names tracks. Cosmetic, cheap.
-  for (const p of paths.filter((q) => /^SOUND\/MIDI\/[^/]+\.TXT$/.test(q))) {
-    const txt = await getAsset(p);
-    if (txt) await putAsset(`MUSIC/${p.slice(p.lastIndexOf('/') + 1)}`, txt);
+  // audio.lua's midi_txt detection still names tracks. Cosmetic, cheap. Best-effort:
+  // this must never throw past renderMusic() — a failure here would otherwise skip
+  // finishIngest()'s location.reload() and strand the user on the ingest overlay.
+  try {
+    for (const p of paths.filter((q) => /^SOUND\/MIDI\/[^/]+\.TXT$/.test(q))) {
+      const txt = await getAsset(p);
+      if (txt) await putAsset(`MUSIC/${p.slice(p.lastIndexOf('/') + 1)}`, txt);
+    }
+  } catch (e) {
+    console.warn('[shell] music render: track-title copy failed, skipping:', e); // best-effort
   }
 }
 

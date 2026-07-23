@@ -43,16 +43,24 @@ function makeFS(initial: Record<string, string> = {}): EmFS {
   };
 }
 
-// Mirrors config_finder.lua's own "is this key present" scan (line ~172):
-// `string.find(file_contents, "\n" .. "%s*" .. key .. "%s*=")` — a newline followed by
-// optional whitespace, the key, optional whitespace, then "=". Our config.txt has no
-// leading blank line, so also accept the very first line matching.
+// Mirrors config_finder.lua's own "is this key present" scan (config_finder.lua:172):
+// `string.find(file_contents, "\n" .. "%s*" .. key .. "%s*=")` — a LITERAL leading
+// newline is required, with no start-of-string exception. A key sitting as the literal
+// first line of the file (no preceding "\n") counts as "missing" to the real engine and
+// would trip needs_rewrite for that key.
 function luaWouldFindKey(text: string, key: string): boolean {
-  return new RegExp(`(^|\\n)\\s*${key}\\s*=`).test(text);
+  return new RegExp(`\\n\\s*${key}\\s*=`).test(text);
 }
 
 test('ensureConfigDefaults seeds every config_finder.lua default key (regression: prevents needs_rewrite from clobbering audio_music)', () => {
   const fs = makeFS();
+  // ensureInstallPath always runs immediately before ensureConfigDefaults in the real
+  // preRun sequence (buildModuleConfig), so config.txt is never actually empty by the
+  // time ensureConfigDefaults appends its lines — call it here too so this test reflects
+  // that real ordering. Without it, the FIRST appended default (`fullscreen`) would sit
+  // on line 1 with no leading "\n", which the engine's strict config_finder.lua:172
+  // pattern would then flag as "missing" even though that never happens in practice.
+  ensureInstallPath(fs);
   ensureConfigDefaults(fs);
   const text = fs.readFile('/home/web_user/.config/CorsixTH/config.txt', { encoding: 'utf8' });
   const missing = CONFIG_FINDER_DEFAULT_KEYS.filter((k) => k !== 'theme_hospital_install' && !luaWouldFindKey(text, k));
