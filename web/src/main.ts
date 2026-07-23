@@ -1,10 +1,15 @@
 import { buildModuleConfig, type EmFS } from './fs-setup';
 import { listAssetPaths, clearAssets, populateThData, validateAssetPaths } from './idb';
+import { showOnboarding } from './onboarding';
 
 declare const Module: (config: object) => Promise<unknown>;
 
 export function setStatus(text: string, isError = false): void {
-  const el = document.getElementById('overlay-status')!;
+  // Fallback to #ingest-status: onboarding.ts's finishIngest() calls this after a
+  // successful ingest, by which point showOnboarding() has already replaced
+  // #overlay-status with the onboarding markup (#overlay-status no longer exists).
+  const el = document.getElementById('overlay-status') ?? document.getElementById('ingest-status');
+  if (!el) { console[isError ? 'error' : 'log']('[shell status]', text); return; }
   el.textContent = text;
   el.classList.toggle('error', isError);
 }
@@ -33,9 +38,17 @@ export async function startShell(): Promise<void> {
     // instead of booting the engine into an invisible installer UI.
     console.error('[shell] stored assets invalid, missing:', missing);
     await clearAssets().catch(() => undefined);
-    setStatus('Stored game data was incomplete — please load it again.', true);
+    showOnboarding();
+    const ingestStatus = document.getElementById('ingest-status');
+    if (ingestStatus) {
+      ingestStatus.textContent = 'Stored game data was incomplete — please load it again.';
+      ingestStatus.classList.add('error');
+    }
     return;
   }
-  setStatus('No game data yet — onboarding arrives in the next task.');
+  showOnboarding();
 }
-void startShell();
+// Guarded: onboarding.ts imports setStatus from here, so bundling onboarding.test.ts
+// (Node, no DOM/IndexedDB) pulls in this module's top-level code too — only
+// auto-start in a real browser document.
+if (typeof document !== 'undefined') void startShell();
