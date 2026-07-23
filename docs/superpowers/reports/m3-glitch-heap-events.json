@@ -472,6 +472,626 @@
         "[glitch-heap] grow: 65536 -> 131072 bytes @ t=512ms [selfTest]",
         "Failed to load resource: the server responded with a status of 404 (File not found)"
       ]
+    },
+    {
+      "chunkIndex": 5,
+      "startedAt": "2026-07-23T19:57:02.358Z",
+      "chunkStartAnchor": {
+        "chunkStartEpochMs": 1784836622358,
+        "chunkStartPerfMs": 20042.699999809265
+      },
+      "selfTestPassed": true,
+      "selfTestEvent": {
+        "tMs": 886,
+        "deltaPages": 1,
+        "beforeBytes": 65536,
+        "afterBytes": 131072,
+        "selfTest": true
+      },
+      "chunkMs": 60,
+      "shotIntervalMs": 15,
+      "screenshots": [
+        {
+          "index": 67,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-67.png",
+          "tMs": 90
+        },
+        {
+          "index": 68,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-68.png",
+          "tMs": 192
+        },
+        {
+          "index": 69,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-69.png",
+          "tMs": 276
+        },
+        {
+          "index": 70,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-70.png",
+          "tMs": 379
+        }
+      ],
+      "heapGrowthEvents": [
+        {
+          "tMs": 886,
+          "deltaPages": 1,
+          "beforeBytes": 65536,
+          "afterBytes": 131072,
+          "selfTest": true
+        }
+      ],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 39351754,
+        "totalJSHeapSize": 41505550,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "[stdout] Could not load music file Sound/Midi/STEADY.XMI. Error: Unrecognized audio format",
+        "[glitch-heap] grow: 65536 -> 131072 bytes @ t=886ms [selfTest]"
+      ]
+    },
+    {
+      "chunkIndex": 6,
+      "startedAt": "2026-07-23T19:58:21.964Z",
+      "chunkStartAnchor": {
+        "chunkStartEpochMs": 1784836701964,
+        "chunkStartPerfMs": 19911.199999809265
+      },
+      "selfTestPassed": true,
+      "selfTestEvent": {
+        "tMs": 747,
+        "deltaPages": 1,
+        "beforeBytes": 65536,
+        "afterBytes": 131072,
+        "selfTest": true
+      },
+      "chunkMs": 480000,
+      "shotIntervalMs": 30000,
+      "screenshots": [
+        {
+          "index": 73,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-73.png",
+          "tMs": 30079
+        },
+        {
+          "index": 74,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-74.png",
+          "tMs": 60159
+        },
+        {
+          "index": 75,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-75.png",
+          "tMs": 90258
+        },
+        {
+          "index": 76,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-76.png",
+          "tMs": 120321
+        },
+        {
+          "index": 77,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-77.png",
+          "tMs": 150407
+        },
+        {
+          "index": 78,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-78.png",
+          "tMs": 180476
+        },
+        {
+          "index": 79,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-79.png",
+          "tMs": 210556
+        },
+        {
+          "index": 80,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-80.png",
+          "tMs": 240622
+        },
+        {
+          "index": 81,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-81.png",
+          "tMs": 270716
+        },
+        {
+          "index": 82,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-82.png",
+          "tMs": 300805
+        },
+        {
+          "index": 83,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-83.png",
+          "tMs": 330884
+        },
+        {
+          "index": 84,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-84.png",
+          "tMs": 361018
+        },
+        {
+          "index": 85,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-85.png",
+          "tMs": 391131
+        },
+        {
+          "index": 86,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-86.png",
+          "tMs": 421289
+        },
+        {
+          "index": 87,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-87.png",
+          "tMs": 451402
+        },
+        {
+          "index": 88,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-88.png",
+          "tMs": 481541
+        }
+      ],
+      "heapGrowthEvents": [
+        {
+          "tMs": 747,
+          "deltaPages": 1,
+          "beforeBytes": 65536,
+          "afterBytes": 131072,
+          "selfTest": true
+        }
+      ],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 46213958,
+        "totalJSHeapSize": 47576378,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "[stdout] Could not load music file Sound/Midi/NIGHTSH.XMI. Error: Unrecognized audio format",
+        "[glitch-heap] grow: 65536 -> 131072 bytes @ t=747ms [selfTest]",
+        "pageerror: null function"
+      ]
+    },
+    {
+      "chunkIndex": 7,
+      "startedAt": "2026-07-23T20:07:12.012Z",
+      "chunkStartAnchor": {
+        "chunkStartEpochMs": 1784837232012,
+        "chunkStartPerfMs": 20012
+      },
+      "selfTestPassed": true,
+      "selfTestEvent": {
+        "tMs": 815,
+        "deltaPages": 1,
+        "beforeBytes": 65536,
+        "afterBytes": 131072,
+        "selfTest": true
+      },
+      "chunkMs": 480000,
+      "shotIntervalMs": 30000,
+      "screenshots": [
+        {
+          "index": 91,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-91.png",
+          "tMs": 30088
+        },
+        {
+          "index": 92,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-92.png",
+          "tMs": 60173
+        },
+        {
+          "index": 93,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-93.png",
+          "tMs": 90218
+        },
+        {
+          "index": 94,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-94.png",
+          "tMs": 120302
+        },
+        {
+          "index": 95,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-95.png",
+          "tMs": 150368
+        },
+        {
+          "index": 96,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-96.png",
+          "tMs": 180447
+        },
+        {
+          "index": 97,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-97.png",
+          "tMs": 210543
+        },
+        {
+          "index": 98,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-98.png",
+          "tMs": 240634
+        },
+        {
+          "index": 99,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-99.png",
+          "tMs": 270728
+        },
+        {
+          "index": 100,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-100.png",
+          "tMs": 300804
+        },
+        {
+          "index": 101,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-101.png",
+          "tMs": 330885
+        },
+        {
+          "index": 102,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-102.png",
+          "tMs": 361014
+        },
+        {
+          "index": 103,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-103.png",
+          "tMs": 391141
+        },
+        {
+          "index": 104,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-104.png",
+          "tMs": 421256
+        },
+        {
+          "index": 105,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-105.png",
+          "tMs": 451390
+        },
+        {
+          "index": 106,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-106.png",
+          "tMs": 481519
+        }
+      ],
+      "heapGrowthEvents": [
+        {
+          "tMs": 815,
+          "deltaPages": 1,
+          "beforeBytes": 65536,
+          "afterBytes": 131072,
+          "selfTest": true
+        }
+      ],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 45949526,
+        "totalJSHeapSize": 47046322,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "[stdout] Could not load music file Sound/Midi/ATLANTIS.XMI. Error: Unrecognized audio format",
+        "[glitch-heap] grow: 65536 -> 131072 bytes @ t=815ms [selfTest]",
+        "pageerror: function signature mismatch"
+      ]
+    },
+    {
+      "chunkIndex": 8,
+      "startedAt": "2026-07-23T20:15:59.565Z",
+      "chunkStartAnchor": {
+        "chunkStartEpochMs": 1784837759565,
+        "chunkStartPerfMs": 24130.700000286102
+      },
+      "selfTestPassed": true,
+      "selfTestEvent": {
+        "tMs": 4796,
+        "deltaPages": 1,
+        "beforeBytes": 65536,
+        "afterBytes": 131072,
+        "selfTest": true
+      },
+      "chunkMs": 480000,
+      "shotIntervalMs": 30000,
+      "screenshots": [
+        {
+          "index": 109,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-109.png",
+          "tMs": 926775
+        },
+        {
+          "index": 110,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-110.png",
+          "tMs": 956945
+        },
+        {
+          "index": 111,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-111.png",
+          "tMs": 987035
+        },
+        {
+          "index": 112,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-112.png",
+          "tMs": 1017126
+        },
+        {
+          "index": 113,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-113.png",
+          "tMs": 1047206
+        },
+        {
+          "index": 114,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-114.png",
+          "tMs": 1077280
+        },
+        {
+          "index": 115,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-115.png",
+          "tMs": 1107365
+        },
+        {
+          "index": 116,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-116.png",
+          "tMs": 1137464
+        },
+        {
+          "index": 117,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-117.png",
+          "tMs": 1167547
+        },
+        {
+          "index": 118,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-118.png",
+          "tMs": 1197627
+        },
+        {
+          "index": 119,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-119.png",
+          "tMs": 1227730
+        },
+        {
+          "index": 120,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-120.png",
+          "tMs": 1257909
+        },
+        {
+          "index": 121,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-121.png",
+          "tMs": 1288082
+        },
+        {
+          "index": 122,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-122.png",
+          "tMs": 1318179
+        },
+        {
+          "index": 123,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-123.png",
+          "tMs": 1348295
+        },
+        {
+          "index": 124,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-124.png",
+          "tMs": 1378427
+        }
+      ],
+      "heapGrowthEvents": [
+        {
+          "tMs": 4796,
+          "deltaPages": 1,
+          "beforeBytes": 65536,
+          "afterBytes": 131072,
+          "selfTest": true
+        }
+      ],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 46187940,
+        "totalJSHeapSize": 46957752,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "[stdout] Could not load music file Sound/Midi/STEADY.XMI. Error: Unrecognized audio format",
+        "[glitch-heap] grow: 65536 -> 131072 bytes @ t=4796ms [selfTest]"
+      ]
+    },
+    {
+      "chunkIndex": 9,
+      "startedAt": "2026-07-23T20:40:26.541Z",
+      "chunkStartAnchor": {
+        "chunkStartEpochMs": 1784839226541,
+        "chunkStartPerfMs": 20492.699999809265
+      },
+      "selfTestPassed": true,
+      "selfTestEvent": {
+        "tMs": 1315,
+        "deltaPages": 1,
+        "beforeBytes": 65536,
+        "afterBytes": 131072,
+        "selfTest": true
+      },
+      "chunkMs": 480000,
+      "shotIntervalMs": 30000,
+      "screenshots": [
+        {
+          "index": 127,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-127.png",
+          "tMs": 30068
+        },
+        {
+          "index": 128,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-128.png",
+          "tMs": 60150
+        },
+        {
+          "index": 129,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-129.png",
+          "tMs": 90231
+        },
+        {
+          "index": 130,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-130.png",
+          "tMs": 120322
+        },
+        {
+          "index": 131,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-131.png",
+          "tMs": 150413
+        },
+        {
+          "index": 132,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-132.png",
+          "tMs": 180492
+        },
+        {
+          "index": 133,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-133.png",
+          "tMs": 210572
+        },
+        {
+          "index": 134,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-134.png",
+          "tMs": 240623
+        },
+        {
+          "index": 135,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-135.png",
+          "tMs": 270689
+        },
+        {
+          "index": 136,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-136.png",
+          "tMs": 300766
+        },
+        {
+          "index": 137,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-137.png",
+          "tMs": 330831
+        },
+        {
+          "index": 138,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-138.png",
+          "tMs": 360896
+        },
+        {
+          "index": 139,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-139.png",
+          "tMs": 390959
+        },
+        {
+          "index": 140,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-140.png",
+          "tMs": 421026
+        },
+        {
+          "index": 141,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-141.png",
+          "tMs": 451068
+        },
+        {
+          "index": 142,
+          "file": "/Users/oliviersuritz/dev/corsixth-web/.claude/worktrees/agent-aa092698e293c3cde/docs/superpowers/reports/m3-glitch-142.png",
+          "tMs": 481123
+        }
+      ],
+      "heapGrowthEvents": [
+        {
+          "tMs": 1315,
+          "deltaPages": 1,
+          "beforeBytes": 65536,
+          "afterBytes": 131072,
+          "selfTest": true
+        }
+      ],
+      "perfMemoryAtEnd": {
+        "usedJSHeapSize": 49783325,
+        "totalJSHeapSize": 50642781,
+        "jsHeapSizeLimit": 4395630592
+      },
+      "consoleTail": [
+        "Failed to load resource: the server responded with a status of 404 (File not found)",
+        "[stdout] ",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Welcome to CorsixTH v0.69.1-dev235!",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] This window will display useful information if an error occurs.",
+        "[stdout] ",
+        "[stdout] ---------------------------------------------------------------",
+        "[stdout] ",
+        "[stdout] Notice: Using data files from demo version of Theme Hospital.",
+        "[stdout] Consider purchasing a full copy of the game to support EA.",
+        "[stdout] Unicode font not found, no fallback available.\t",
+        "The ScriptProcessorNode is deprecated. Use AudioWorkletNode instead. (https://bit.ly/audio-worklet)",
+        "[stdout] Could not load music file Sound/Midi/NIGHTSH.XMI. Error: Unrecognized audio format",
+        "[glitch-heap] grow: 65536 -> 131072 bytes @ t=1315ms [selfTest]",
+        "pageerror: null function",
+        "pageerror: memory access out of bounds",
+        "pageerror: memory access out of bounds"
+      ]
     }
   ]
 }

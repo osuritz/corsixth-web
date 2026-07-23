@@ -1,6 +1,11 @@
 # M3 Task 4 — Bounded Glitch-Repro Report
 
-**Verdict: NOT REPRODUCED.** Watch-item + sponsor-evidence request below.
+**Verdict: SPRITE CORRUPTION NOT REPRODUCED.** Watch-item + sponsor-evidence
+request below. **v1.x update:** a separate, severe engine crash (uncaught
+Lua/WASM runtime errors, full simulation freeze — not sprite garbling) was
+reproduced once during GP's Office room-construction UI automation, but was not
+reliably reproducible in 3 follow-up attempts; see the "v1.x addendum" section
+near the end of this file for full details, evidence, and an updated watch-item.
 
 ## What was exercised
 
@@ -192,3 +197,161 @@ sponsor for:
   `m3-glitch-NN.png` files (this report's committed screenshots were hand-curated from
   a larger raw set produced during this task — see Global Constraints on keeping the
   committed set small).
+
+## v1.x addendum: GP's Office automation attempt + long sprite-dense session
+
+This addendum covers the watch-item's identified next step: get past Reception
+Desk + Receptionist into an actively-diagnosing hospital (a built, staffed GP's
+Office), then run a long instrumented session against that richer state.
+
+### GP's Office room-construction automation: where it breaks
+
+Room construction is a materially different UI flow from the single-click object
+placement used for the Reception Desk (confirmed via engine-source read of
+`CorsixTH/Lua/dialogs/edit_room.lua`, `bottom_panel.lua`, `place_objects.lua`):
+open the "Build rooms" toolbar icon → pick the "Diagnosis" category tab → pick
+"GP's Office" (first row, `rooms/gp.lua`'s `categories.diagnosis = 1`, so it needs
+no research and is available immediately) → **drag** a rectangular wall footprint
+(minimum 4×4 tiles, `rooms/gp.lua:35`) → click a wall edge to place a door → click
+Confirm.
+
+Per the brief, this automation pass was done **interactively via Chrome DevTools
+MCP** against a fresh server (port 8129) and a dedicated Chrome instance, since
+(as already noted in this file's Design section) that MCP has no raw-coordinate
+click/drag primitive for canvas content — so each step used `evaluate_script` to
+dispatch synthetic `mousedown`/`mousemove`/`mouseup` events directly at the
+canvas element (verified working: it drives the exact same input path Reception
+Desk/Hire Staff automation already uses). Toolbar navigation, category selection,
+and room-type selection all worked first try. The **drag-to-define-footprint**
+step took several iterations to land a rectangle that rendered fully valid (no
+red overlap tiles) — early attempts were too small, overlapped the existing
+Reception Desk building, overlapped the outer plot wall, or drifted onto the
+outdoor grass verge outside the buildable plot; the final working footprint used
+canvas-fraction anchors `(0.72, 0.36)` → `(0.72, 0.62)` at the harness's standard
+960×720 viewport (see `docs/superpowers/reports/m3-glitch-gp-office-blueprint-stuck.png`).
+
+**This is the breaking point:** even with a footprint that renders with zero red
+(invalid/overlap) tiles, the Confirm button never activates. This was checked two
+independent ways, both gated in the engine source on the exact same
+`self.confirm_button.enabled` flag (`CorsixTH/Lua/dialogs/edit_room.lua:207-211`,
+`window.lua:1591`):
+1. A direct click on the Confirm button's screen position (verified correctly
+   aligned — a "Confirm" tooltip and hand cursor render there).
+2. The documented `global_confirm`/`global_confirm_alt` hotkeys (Enter / `e`,
+   `config_finder.lua:581-582`), which `UIEditRoom:confirm` explicitly re-checks
+   against the same enabled flag even when invoked via hotkey.
+
+Neither ever advanced the dialog past the walls phase. Per
+`edit_room.lua:1189-1230`, `confirm_button:enable(is_valid)` is set from a single
+opaque boolean returned by a **native C++ function**
+(`map.th:updateRoomBlueprint`, implemented in `CorsixTH/Src/th_lua.cpp` — outside
+this task's Lua-level read), not from the simple per-tile red/blue overlap
+rendering a screenshot can show. So a rectangle that *looks* fully valid can still
+have `is_valid == false` for a reason opaque to black-box UI automation (the two
+most likely candidates given the Lua source contains no plot-boundary or
+decorative-object checks: a plot-ownership/buildable-area rule, or a stricter
+geometric constraint than "no visible overlap" — both live in native code this
+task did not read). **Conclusion: room construction cannot be completed via
+UI automation within this task's bounded effort** (well past 3 focused attempts
+once sub-attempts at finding a valid footprint and diagnosing the Confirm gate
+are counted) — this is the honest stopping point the brief anticipated
+("record exactly where it breaks... fall back... bounded honesty over burn").
+
+### A genuine crash was reproduced once during this exploration
+
+While iterating on the footprint drag (many small/overlapping/reversed-direction
+drags in one interactive session, followed by a Confirm click attempt), the
+engine hit **three uncaught, unrecoverable Lua/WASM runtime errors** and the
+entire simulation froze — the in-game date and money stopped advancing, and
+neither the Confirm nor Cancel button produced any further effect (checked by
+waiting several seconds and re-screenshotting, then clicking Cancel: zero visual
+change). Console errors (with full stack traces, on file in the session
+transcript):
+```
+Uncaught RuntimeError: table index is out of bounds   (×2)
+Uncaught (in promise)                                  — Asyncify doRewind/handleSleep chain
+Uncaught RuntimeError: null function
+Uncaught RuntimeError: memory access out of bounds     — appeared ~4s after the first two
+```
+`performance.memory.usedJSHeapSize` at the time of the freeze was ~41MB — in the
+same flat range as every other session in this investigation, i.e. **this crash
+was not preceded by a heap-growth event**, arguing against the heap-growth
+hypothesis as this particular crash's cause (though it doesn't rule out a
+separate, non-growth memory-corruption path — "memory access out of bounds" is
+consistent with either a genuine Lua logic bug or actual wasm heap corruption;
+distinguishing the two would need native-code-level debugging out of scope here).
+
+**Reproducibility: not achieved.** Two follow-up attempts — a fast clean replay of
+the exact same final action, and a fast then a slow (matching the original's
+pacing) replay of the *entire* invalid-drag-then-valid-confirm sequence — both
+completed without any error. This is consistent with a timing-sensitive/
+non-deterministic trigger (plausible given the errors surfaced through the
+engine's Asyncify coroutine-rewind machinery, `corsix-th.js`'s `doRewind`/
+`handleSleep`, which is inherently sensitive to real-world event timing) rather
+than a deterministic function of the click sequence alone — and is honestly a
+closer match to the sponsor's own vague "after playing for a while" description
+than a hard, always-reproducible bug would be. **This is escalated as a new,
+stronger watch-item entry below**, not folded into "reproduced" with false
+confidence.
+
+### Long sprite-dense session (fallback: Reception Desk + Receptionist, as before)
+
+Since GP's Office construction could not be completed, the long session used
+this task's only *proven-functioning* populated-hospital setup — the same
+Reception Desk + Receptionist flow as the original 4 trials — run for
+substantially longer to give the heap-growth hypothesis a much larger, harder-to-
+dismiss negative if nothing shows up.  Run against a **dedicated profile dir**
+(`GLITCH_PROFILE_DIR`, now a first-class option on `web/e2e-glitch.mjs` — see that
+file's diff) so this ~32-minute session wouldn't hold an exclusive Chrome
+`userDataDir` lock against the other lanes' concurrent use of the harness's
+default shared profile.
+
+| chunk | wall-clock | heap-growth events (non-self-test) | `usedJSHeapSize` at end | notes |
+|---|---|---|---|---|
+| 5 (smoke) | 1 min | 0 | 39.4MB | profile warm-up validation |
+| 6 | 8 min | 0 | 46.2MB | |
+| 7 | 8 min | 0 | 46.0MB | |
+| 8 | 8 min | 0 | 46.2MB | |
+| 9 | 8 min | 0 | 49.8MB | in-game date reached 1 Jan (year 2000); year-end Charts screen reconfirmed "Most Visitors: 0" for every entity — Finding 2 (no GP's Office ⇒ no patients) holds at this longer duration too |
+
+All 4 long (8-minute) chunks plus the smoke chunk completed cleanly — no crash,
+no engine error, no visual corruption in any of the 4×16 = 64 periodic
+screenshots inspected (spot-checked in full; two representative frames pulled
+for this addendum, `m3-glitch-124.png`-equivalent and the chunk-9 Charts
+screen — not committed individually per the existing "keep the committed set
+small" convention, since they show the same flat/uneventful state as the
+already-committed `m3-glitch-03`/`m3-glitch-04` frames).
+
+Across all of today's chunks, `usedJSHeapSize` again stayed flat (~39-50MB,
+consistent with every prior chunk in this file, including chunk 4's earlier
+self-validation run) and zero real (non-self-test) heap-growth events fired.
+Combined with the original 4 trials, this investigation has now observed **zero
+engine-driven heap-growth events across 9 independent sessions and roughly
+65+ minutes of monitored wall-clock time**, entirely under Reception Desk +
+Receptionist conditions (no diagnosis room ever functioning). The flat-memory
+finding (Finding 1) is unchanged and now backed by substantially more data.
+
+### Updated watch-item
+
+- **Status:** open, unresolved, but materially changed. The original watch-item
+  ("no sprite-dense session was reached at all") is now a **much stronger
+  negative**: even with room-construction UI automation attempted directly
+  (not just requested as future scope), and even with a session length roughly
+  double the original, no visual sprite corruption was observed and no
+  heap-growth event fired outside the self-test.
+- **New, separate watch-item (crash, not sprite corruption):** a real, one-time,
+  uncaught Lua/WASM crash (full freeze, three distinct runtime-error strings) was
+  observed during **active room-construction UI manipulation** (not idle/fast-
+  forwarded simulation), and was not reproducible in 3 follow-up attempts. This
+  is a different failure mode than the sponsor's reported sprite garbling, but is
+  a genuine engine defect reachable from mainline (if UI-automation-stress-level)
+  interaction, and is worth a dedicated follow-up task with real native-code
+  debugging (`CorsixTH/Src/th_lua.cpp`'s `l_map_updateblueprint`, and whatever
+  Lua callback the Asyncify `doRewind` stack trace was resuming into) rather than
+  further black-box UI automation, which has now been pushed about as far as it
+  usefully can be without that access.
+- **What would move the sprite-corruption question forward:** unchanged from the
+  original report — either a follow-up task with the native-code access needed to
+  fix/re-attempt the GP's Office Confirm gate (so an actually-treating-patients
+  session becomes reachable), or the sponsor's own repro session as evidence (see
+  below, unchanged).
