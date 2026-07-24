@@ -92,17 +92,17 @@ html, body {
   line-height: 1.55;
 }
 
-/* Subtle hospital-cross seal — a plain plus-in-a-circle, drawn with layered CSS
-   backgrounds (no image asset). A generic medical symbol, not any specific TH/EA mark. */
+/* Subtle hospital-cross crest — a plain plus-in-a-circle, drawn with layered CSS
+   backgrounds (no image asset). A generic medical symbol, not any specific TH/EA mark.
+   Centered above the title as an intentional crest so it never clips the panel corner. */
 #overlay-content::before {
   content: "";
-  position: absolute;
-  top: -20px;
-  right: -20px;
-  width: 52px;
-  height: 52px;
+  display: block;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 0.7rem;
   border-radius: 50%;
-  transform: rotate(-10deg);
+  transform: rotate(-8deg);
   background:
     linear-gradient(var(--cross-red) 0 0) center / 32% 62% no-repeat,
     linear-gradient(var(--cross-red) 0 0) center / 62% 32% no-repeat,
@@ -265,6 +265,6 @@ progress:indeterminate { background-image: repeating-linear-gradient(45deg, var(
   #music-notice { left: 1rem; right: 1rem; max-width: none; }
   #overlay { padding: .75rem; }
   #overlay-content { padding: 1.5rem 1.1rem 1.35rem; border-radius: 16px; }
-  #overlay-content::before { width: 40px; height: 40px; top: -14px; right: -14px; }
+  #overlay-content::before { width: 40px; height: 40px; margin-bottom: 0.5rem; }
   button, .button { display: block; width: 100%; box-sizing: border-box; text-align: center; }
 }
